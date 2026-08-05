@@ -2,7 +2,7 @@
 
 A lightweight, testable C++ toolkit for point cloud I/O, filtering, spatial search, feature estimation, and rigid registration.
 
-> **Current status:** repository initialization. The implementation has not started yet. Features marked as planned below are not available on the current branch.
+> **Current status:** v0.1.0 project skeleton. The C++17/CMake build, core point cloud types, CLI smoke commands, and initial automated tests are available.
 
 ## Why This Project
 
@@ -17,12 +17,12 @@ Point cloud pipelines often need a small set of dependable geometric operations 
 
 The goal is not to replace PCL or Open3D. The project deliberately keeps a narrow scope so that each algorithm, data-flow decision, and performance result can be inspected and reproduced.
 
-## Planned Capabilities
+## Capabilities
 
 | Capability | Status | Target milestone |
 |---|---|---|
 | Repository structure and development roadmap | Complete | v0.0.1 |
-| C++17/CMake project and core point cloud types | Planned | v0.1.0 |
+| C++17/CMake project and core point cloud types | Complete | v0.1.0 |
 | ASCII PLY reader and writer | Planned | v0.2.0 |
 | Point cloud statistics and rigid transformations | Planned | v0.3.0 |
 | Voxel-grid downsampling | Planned | v0.4.0 |
@@ -36,15 +36,115 @@ The goal is not to replace PCL or Open3D. The project deliberately keeps a narro
 
 Statuses are updated only after implementation, tests, documentation, and verification are complete.
 
-## Intended Technical Stack
+## Requirements
 
-- C++17
-- CMake and CMake Presets
-- Eigen
-- CTest with a lightweight unit-test framework
-- GitHub Actions
+- CMake 3.25 or newer
+- Git, required by CMake only when dependencies are first fetched
+- A C++17 compiler
+- Network access during the first configure step
 
-Dependencies and exact supported compiler versions will be documented when the build system is introduced in v0.1.0.
+The current Windows presets use the Visual Studio 2022 x64 generator. Eigen 3.4.1 and GoogleTest 1.17.0 are fetched automatically and pinned to release tags.
+
+## Build and Test
+
+Configure, build, and test the Debug preset from the repository root:
+
+```powershell
+cmake --preset windows-msvc-debug
+cmake --build --preset windows-msvc-debug
+ctest --preset windows-msvc-debug --output-on-failure
+```
+
+For Release:
+
+```powershell
+cmake --preset windows-msvc-release
+cmake --build --preset windows-msvc-release
+ctest --preset windows-msvc-release --output-on-failure
+```
+
+The first configure downloads pinned Eigen and GoogleTest sources into the ignored `build/` directory. Subsequent builds reuse the local dependency cache.
+
+The v0.1.0 milestone has been verified with:
+
+- Visual Studio Community 2022;
+- MSVC 19.41.34120;
+- Windows SDK 10.0.22621.0;
+- CMake 4.3.2;
+- nine passing tests in both Debug and Release configurations.
+
+## Command-Line Usage
+
+The initial CLI exposes help and version information:
+
+```powershell
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe'
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' --help
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' --version
+```
+
+Running without arguments displays help and exits successfully. Unknown arguments or extra arguments display an error and return exit code 2.
+
+## Current Structure
+
+```text
+PointCloud_Processing_Toolkit/
+├── app/
+│   └── main.cpp
+├── include/pct/core/
+│   ├── point.hpp
+│   └── point_cloud.hpp
+├── src/core/
+│   └── point_cloud.cpp
+├── tests/
+│   ├── unit/
+│   │   └── test_point_cloud.cpp
+│   └── CMakeLists.txt
+├── CMakeLists.txt
+├── CMakePresets.json
+└── README.md
+```
+
+Directories for I/O, filters, search, features, registration, benchmarks, and data will be introduced when their first real implementation is added. Empty architecture placeholders are intentionally not committed.
+
+## Core API
+
+The `pct::Point` type currently stores:
+
+- a three-dimensional `Eigen::Vector3f` position;
+- an optional 8-bit RGB color.
+
+The `pct::PointCloud` type owns an aligned point container and provides:
+
+- `empty()` and `size()`;
+- checked access through `at()`;
+- unchecked access through `operator[]`;
+- copy and move insertion through `pushBack()`;
+- `clear()` and direct container access.
+
+File I/O and processing algorithms are intentionally kept outside `PointCloud` so that storage, serialization, and algorithms remain separate responsibilities.
+
+## Validation
+
+The v0.1.0 test suite covers:
+
+- CLI startup without arguments;
+- CLI help and version commands;
+- default point state;
+- optional RGB color storage;
+- empty point clouds;
+- copy/move insertion and access;
+- checked out-of-range access;
+- point cloud clearing.
+
+Future algorithms will use four levels of validation:
+
+1. **Analytical unit tests:** tiny point clouds with hand-computed expected results.
+2. **Baseline comparison:** optimized methods compared with simple correctness baselines.
+3. **Synthetic experiments:** known transforms, controlled noise, outliers, density, and overlap.
+4. **Real-data experiments:** licensed public point clouds processed with documented commands and parameters.
+
+All benchmark claims will identify the build type, compiler, hardware, input scale, query count, and aggregation method.
 
 ## Design Principles
 
@@ -55,55 +155,7 @@ Dependencies and exact supported compiler versions will be documented when the b
 5. Compare optimized implementations with simple correctness baselines.
 6. Record hardware, compiler settings, dataset characteristics, and methodology for performance claims.
 7. Document failure cases and limitations, not only successful examples.
-8. Keep `main` buildable and testable after development begins.
-
-## Planned Architecture
-
-```text
-PointCloud_Processing_Toolkit/
-├── app/                    # Command-line executable
-├── cmake/                  # Reusable CMake modules
-├── data/                   # Small licensed samples and data documentation
-├── docs/                   # Design, algorithm, benchmark, and experiment notes
-├── include/pct/            # Public C++ headers
-├── src/                    # Library implementation
-├── tests/                  # Unit and integration tests
-├── tools/                  # Benchmark and evaluation utilities
-├── CMakeLists.txt
-├── CMakePresets.json
-└── README.md
-```
-
-Directories will be added when their first real content is implemented. Empty architecture placeholders are intentionally not committed.
-
-## Build and Usage
-
-There is no buildable source code in the repository initialization milestone. Build instructions will be added with the v0.1.0 project skeleton.
-
-Once v0.1.0 is complete, the expected workflow will follow this form:
-
-```powershell
-cmake --preset windows-debug
-cmake --build --preset windows-debug
-ctest --preset windows-debug --output-on-failure
-```
-
-These commands are illustrative until the corresponding presets are committed and tested.
-
-## Development Roadmap
-
-Development follows the milestones in the capability table above. A milestone is complete only when its implementation, automated tests, user-facing documentation, and reproducible examples are all available on the main branch.
-
-## Planned Validation Strategy
-
-The project will use four levels of validation:
-
-1. **Analytical unit tests:** tiny point clouds with hand-computed expected results.
-2. **Baseline comparison:** KD-tree queries compared with brute-force search, and algorithm outputs sampled against independent reference implementations.
-3. **Synthetic experiments:** known transforms, controlled noise, outliers, density, and overlap.
-4. **Real-data experiments:** licensed public point clouds processed with documented commands and parameters.
-
-All future benchmark claims must identify the build type, compiler, hardware, input scale, query count, and aggregation method.
+8. Keep the default branch buildable and testable.
 
 ## Non-Goals
 
