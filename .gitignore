@@ -1,0 +1,117 @@
+# CMake build directories and generated files
+/build/
+/build-*/
+/out/
+/cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+cmake_install.cmake
+install_manifest.txt
+Makefile
+compile_commands.json
+Testing/
+_deps/
+
+# Compiled objects, libraries, and executables
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.exp
+*.ilk
+*.pdb
+*.idb
+*.app
+
+# Visual Studio
+.vs/
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.VC.opendb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+x64/
+x86/
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
+
+# Visual Studio Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# CLion and JetBrains IDEs
+.idea/
+*.iml
+
+# Vim, Emacs, and temporary editor files
+*.swp
+*.swo
+*~
+.project
+.cproject
+.settings/
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Python evaluation and visualization utilities
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs, coverage, profiling, and benchmark scratch data
+*.log
+coverage/
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+/benchmark-results/local/
+/results/local/
+
+# Downloaded or private datasets
+/data/raw/
+/data/downloads/
+/data/private/
+/data/**/*.zip
+/data/**/*.7z
+/data/**/*.tar
+/data/**/*.tar.gz
+
+# Local point cloud outputs and generated visualizations
+*_output.ply
+*_processed.ply
+*_downsampled.ply
+*_filtered.ply
+*_registered.ply
+/artifacts/
+
