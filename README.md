@@ -103,8 +103,8 @@ Example output from `stats` for two points at `(1, 2, 3)` and `(-1, -2, -3)`:
 ```text
 points: 2
 centroid: 0 0 0
-bounding_min: -1 -2 -3
-bounding_max: 1 2 3
+bbox_min: -1 -2 -3
+bbox_max: 1 2 3
 ```
 
 ## Current Structure
