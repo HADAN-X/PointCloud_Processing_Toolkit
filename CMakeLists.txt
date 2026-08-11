@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
     PointCloudProcessingToolkit
-    VERSION 0.2.0
+    VERSION 0.3.0
     DESCRIPTION "A lightweight C++ point cloud processing toolkit"
     LANGUAGES CXX
 )
@@ -27,6 +27,8 @@ FetchContent_MakeAvailable(Eigen)
 add_library(pct_core
     src/core/point_cloud.cpp
     src/io/ply_io.cpp
+    src/geometry/transform.cpp
+    src/geometry/statistics.cpp
 )
 add_library(pct::core ALIAS pct_core)
 
@@ -80,4 +82,28 @@ if(BUILD_TESTING)
     set_tests_properties(
         pct_cli_info PROPERTIES PASS_REGULAR_EXPRESSION "points: 2"
     )
+    add_test(NAME pct_cli_stats COMMAND pointcloud_tool stats
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ascii_xyz_rgb.ply")
+    set_tests_properties(
+        pct_cli_stats PROPERTIES PASS_REGULAR_EXPRESSION "centroid: 0 0 0"
+    )
+    add_test(NAME pct_cli_translate COMMAND pointcloud_tool transform
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ascii_xyz.ply"
+            "${CMAKE_CURRENT_BINARY_DIR}/translated.ply"
+            --translate 1 2 3)
+    set_tests_properties(
+        pct_cli_translate PROPERTIES PASS_REGULAR_EXPRESSION "wrote 3 transformed points"
+    )
+    add_test(NAME pct_cli_transform_rotate_z COMMAND pointcloud_tool transform
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ascii_xyz_rgb.ply"
+            "${CMAKE_CURRENT_BINARY_DIR}/rotated_z.ply"
+            --rotate-z 90)
+    add_test(NAME pct_cli_transform_matrix COMMAND pointcloud_tool transform
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ascii_xyz.ply"
+            "${CMAKE_CURRENT_BINARY_DIR}/matrix_transformed.ply"
+            --matrix
+            1 0 0 1
+            0 1 0 2
+            0 0 1 3
+            0 0 0 1)
 endif()

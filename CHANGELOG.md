@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 No changes yet.
 
+## [0.3.0] - 2026-08-11
+
+### Added
+
+- Single-pass point count, centroid, and axis-aligned bounding-box statistics.
+- Explicit undefined statistics for empty point clouds and finite-coordinate validation.
+- Validated rigid transformations with translation and X/Y/Z axis rotations.
+- `stats` and `transform` command-line operations, including row-major matrix input.
+- Analytical tests for statistics, transform composition, inverse recovery, and color preservation.
+
+### Validation
+
+- MSVC Debug build and 44/44 tests.
+- MSVC Release build and 44/44 tests.
+
+### Limitations
+
+- Transformations are restricted to finite rigid matrices; scaling, shear, reflection, and projective transforms are rejected.
+- Geometry coordinates and transformation matrices use single-precision floats.
+
 ## [0.2.0] - 2026-08-11
 
 ### Added
@@ -55,7 +75,8 @@ No changes yet.
 - Repository ignore rules and cross-platform line-ending policy.
 - MIT license.
 
-[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.2.0-ply-ascii...HEAD
+[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.3.0-geometry...HEAD
+[0.3.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.3.0-geometry
 [0.2.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.2.0-ply-ascii
 [0.1.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.1.0-skeleton
 [0.0.1]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/commit/20dfc4fdcab73b0e4fc372bd920af92e3e900553

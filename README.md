@@ -2,7 +2,7 @@
 
 A lightweight, testable C++ toolkit for point cloud I/O, filtering, spatial search, feature estimation, and rigid registration.
 
-> **Current status:** v0.2.0 ASCII PLY I/O. The toolkit can read, validate, inspect, and rewrite ASCII PLY 1.0 point clouds with XYZ and optional RGB attributes.
+> **Current status:** v0.3.0 geometry utilities. The toolkit can compute point-cloud statistics and apply validated rigid transformations while preserving optional RGB attributes.
 
 ## Why This Project
 
@@ -24,7 +24,7 @@ The goal is not to replace PCL or Open3D. The project deliberately keeps a narro
 | Repository structure and development roadmap             | Complete | v0.0.1           |
 | C++17/CMake project and core point cloud types           | Complete | v0.1.0           |
 | ASCII PLY reader and writer                              | Complete | v0.2.0           |
-| Point cloud statistics and rigid transformations         | Planned  | v0.3.0           |
+| Point cloud statistics and rigid transformations         | Complete | v0.3.0           |
 | Voxel-grid downsampling                                  | Planned  | v0.4.0           |
 | Brute-force KNN/radius search and radius outlier removal | Planned  | v0.5.0           |
 | Three-dimensional KD-tree                                | Planned  | v0.6.0           |
@@ -65,33 +65,46 @@ ctest --preset windows-msvc-release --output-on-failure
 
 The first configure downloads pinned Eigen and GoogleTest sources into the ignored `build/` directory. Subsequent builds reuse the local dependency cache.
 
-The v0.2.0 milestone has been verified with:
+The v0.3.0 milestone has been verified with:
 
 - Visual Studio Community 2022;
 - MSVC 19.41.34120;
 - Windows SDK 10.0.22621.0;
 - CMake 4.3.2;
-- 23 passing tests in both Debug and Release configurations.
+- 44 passing tests in both Debug and Release configurations.
 
 ## Command-Line Usage
 
-The CLI exposes help, version, PLY inspection, and ASCII PLY rewrite operations:
+The CLI exposes help, version, PLY inspection and statistics, ASCII PLY rewrite, and rigid-transform operations:
 
 ```powershell
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe'
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' --help
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' --version
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' info input.ply
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' stats input.ply
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' convert input.ply output.ply
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --translate 1 2 3
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --rotate-z 90
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --matrix 1 0 0 1 0 1 0 2 0 0 1 3 0 0 0 1
 ```
 
-Running without arguments displays help and exits successfully. PLY file or parsing failures return exit code 1. Unknown commands, missing arguments, or extra arguments return exit code 2.
+The library transformation API accepts angles in radians. The CLI accepts rotation angles in degrees and matrix values in row-major order. Running without arguments displays help and exits successfully. PLY, numeric, or geometry failures return exit code 1. Unknown commands, missing arguments, or extra arguments return exit code 2.
 
 Example output from `info`:
 
 ```text
 points: 2
 has_color: true
+```
+
+Example output from `stats` for two points at `(1, 2, 3)` and `(-1, -2, -3)`:
+
+```text
+points: 2
+centroid: 0 0 0
+bounding_min: -1 -2 -3
+bounding_max: 1 2 3
 ```
 
 ## Current Structure
@@ -104,11 +117,17 @@ PointCloud_Processing_Toolkit/
 │   ├── core/
 │   │   ├── point.hpp
 │   │   └── point_cloud.hpp
+│   ├── geometry/
+│   │   ├── statistics.hpp
+│   │   └── transform.hpp
 │   └── io/
 │       └── ply_io.hpp
 ├── src/
 │   ├── core/
 │   │   └── point_cloud.cpp
+│   ├── geometry/
+│   │   ├── statistics.cpp
+│   │   └── transform.cpp
 │   └── io/
 │       └── ply_io.cpp
 ├── tests/
@@ -119,7 +138,9 @@ PointCloud_Processing_Toolkit/
 │   │   └── malformed_*.ply
 │   ├── unit/
 │   │   ├── test_point_cloud.cpp
-│   │   └── test_ply_io.cpp
+│   │   ├── test_ply_io.cpp
+│   │   ├── test_statistics.cpp
+│   │   └── test_transform.cpp
 │   └── CMakeLists.txt
 ├── CMakeLists.txt
 ├── CMakePresets.json
@@ -151,9 +172,17 @@ The `pct::io` API currently provides:
 - `writePlyAscii()` for XYZ or XYZRGB output;
 - `PlyError` for file access, format, schema, and numeric validation failures.
 
+The `pct::geometry` API currently provides:
+
+- single-pass point count, centroid, and axis-aligned bounding-box statistics;
+- explicit undefined centroid and bounding-box results for empty point clouds;
+- rigid-transform construction from translation and X/Y/Z axis rotations;
+- validation of finite homogeneous matrices, rotation orthogonality, and determinant;
+- point-cloud transformation with optional RGB attributes preserved.
+
 ## Validation
 
-The v0.2.0 test suite covers:
+The v0.3.0 test suite covers:
 
 - CLI startup without arguments;
 - CLI help and version commands;
@@ -170,6 +199,13 @@ The v0.2.0 test suite covers:
 - non-finite coordinates and incomplete RGB schemas;
 - partially colored point clouds and prevention of partial output files;
 - the CLI `info` command against a real fixture.
+- empty, single-point, and analytical multi-point statistics;
+- centroid and axis-aligned bounding-box results;
+- identity, translation, and X/Y/Z axis rotations;
+- transform composition order and inverse recovery;
+- preservation of optional RGB attributes during transformation;
+- rejection of non-finite coordinates, non-finite matrices, scaling, and invalid homogeneous rows;
+- the CLI `stats` and `transform` commands with translation, rotation, and row-major matrix input.
 
 Future algorithms will use four levels of validation:
 
@@ -200,6 +236,10 @@ Current limitations:
 - coordinates are stored as single-precision floats;
 - all points must either have RGB color or have no color when writing;
 - this milestone does not target optimized loading of very large ASCII files.
+- geometry coordinates and transformation matrices use single-precision floats;
+- transformations are restricted to finite rigid matrices; scaling, shear, reflection, and projective transforms are rejected;
+- axis-aligned bounding boxes depend on the current coordinate frame and must be recomputed after rotation;
+- the geometry functions process point clouds in memory and do not yet provide parallel or streaming execution.
 
 ## Design Principles
 

@@ -115,3 +115,4 @@ coverage/
 *_registered.ply
 /artifacts/
 
+/run_all.ps1
