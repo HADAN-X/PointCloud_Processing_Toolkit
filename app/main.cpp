@@ -1,10 +1,15 @@
 #include "pct/io/ply_io.hpp"
-
+#include "pct/geometry/statistics.hpp"
+#include "pct/geometry/transform.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <string_view>
-
+#include <charconv>
+#include <cmath>
+#include <iomanip>
+#include <stdexcept>
+#include <string>
 namespace
 {
 
@@ -16,7 +21,18 @@ namespace
             << "  pointcloud_tool --help\n"
             << "  pointcloud_tool --version\n"
             << "  pointcloud_tool info <input.ply>\n"
-            << "  pointcloud_tool convert <input.ply> <output.ply>\n";
+            << "  pointcloud_tool stats <input.ply>\n"
+            << "  pointcloud_tool convert <input.ply> <output.ply>\n"
+            << "  pointcloud_tool transform <input.ply> <output.ply> "
+               "--translate <tx> <ty> <tz>\n"
+            << "  pointcloud_tool transform <input.ply> <output.ply> "
+               "--rotate-x <degrees>\n"
+            << "  pointcloud_tool transform <input.ply> <output.ply> "
+               "--rotate-y <degrees>\n"
+            << "  pointcloud_tool transform <input.ply> <output.ply> "
+               "--rotate-z <degrees>\n"
+            << "  pointcloud_tool transform <input.ply> <output.ply> "
+               "--matrix <16 row-major values>\n";
     }
 
     int printUsageError(std::string_view message)
@@ -36,6 +52,81 @@ namespace
                            });
     }
 
+    constexpr float kPi = 3.14159265358979323846F;
+    float parseFiniteFloat(std::string_view text)
+    {
+        float value = 0.0F;
+        const char *const begin = text.data();
+        const char *const end = begin + text.size();
+        const auto result = std::from_chars(begin, end, value);
+        if (result.ec != std::errc{} || result.ptr != end || !std::isfinite(value))
+        {
+            throw std::invalid_argument("Invalid float: " + std::string{text});
+        }
+        return value;
+    }
+
+    float degreesToRadians(float degrees)
+    {
+        return degrees * (kPi / 180.0F);
+    }
+
+    pct::geometry::Matrix4f parseTransform(int argc, char *argv[])
+    {
+        const std::string_view option{argv[4]};
+        if (option == "--translate")
+        {
+            if (argc != 8)
+            {
+                throw std::invalid_argument(
+                    "translate requires exactly three float arguments");
+            }
+            return pct::geometry::makeTranslation({parseFiniteFloat(argv[5]),
+                                                   parseFiniteFloat(argv[6]),
+                                                   parseFiniteFloat(argv[7])});
+        }
+        if (option == "--rotate-x" || option == "--rotate-y" || option == "--rotate-z")
+        {
+            if (argc != 6)
+            {
+                throw std::invalid_argument(
+                    "rotate requires exactly one angle in degrees");
+            }
+            const float radians = degreesToRadians(parseFiniteFloat(argv[5]));
+            if (option == "--rotate-x")
+            {
+                return pct::geometry::makeRotationX(radians);
+            }
+            if (option == "--rotate-y")
+            {
+                return pct::geometry::makeRotationY(radians);
+            }
+            return pct::geometry::makeRotationZ(radians);
+        }
+        if (option == "--matrix")
+        {
+            if (argc != 21)
+            {
+                throw std::invalid_argument(
+                    "--matrix requires exactly 16 row-major arguments");
+            }
+            pct::geometry::Matrix4f transform;
+            for (int row = 0; row < 4; ++row)
+            {
+                for (int col = 0; col < 4; ++col)
+                {
+                    transform(row, col) = parseFiniteFloat(argv[5 + row * 4 + col]);
+                }
+            }
+            if (!pct::geometry::isRigidTransform(transform))
+            {
+                throw std::invalid_argument(
+                    "The provided matrix is not a valid rigid transform.");
+            }
+            return transform;
+        }
+        throw std::invalid_argument("Unknown transform option: " + std::string{option});
+    }
 } // namespace
 
 int main(int argc, char *argv[])
@@ -91,6 +182,44 @@ int main(int argc, char *argv[])
         }
     }
 
+    if (command == "stats")
+    {
+        if (argc != 3)
+        {
+            return printUsageError("stats requires one input PLY path");
+        }
+        try
+        {
+            const auto cloud = pct::io::readPly(argv[2]);
+            const auto statistics = pct::geometry::computeStatistics(cloud);
+            std::cout << std::setprecision(9) << "points: " << statistics.point_count << "\n";
+            if (!statistics.centroid || !statistics.bounding_box)
+            {
+                std::cout << "centroid: undefined\n";
+                std::cout << "bbox_min: undefined\n";
+                std::cout << "bbox_max: undefined\n";
+                return 0;
+            }
+            std::cout << "centroid: " << statistics.centroid->transpose()
+                      << '\n'
+                      << "bbox_min: "
+                      << statistics.bounding_box->minimum.transpose() << '\n'
+                      << "bbox_max: "
+                      << statistics.bounding_box->maximum.transpose() << '\n';
+            return 0;
+        }
+        catch (const pct::io::PlyError &error)
+        {
+            std::cerr << "PLY error: " << error.what() << '\n';
+            return 1;
+        }
+        catch (const std::invalid_argument &error)
+        {
+            std::cerr << "Geometry error: " << error.what() << '\n';
+            return 1;
+        }
+    }
+
     if (command == "convert")
     {
         if (argc != 4)
@@ -110,6 +239,37 @@ int main(int argc, char *argv[])
         catch (const pct::io::PlyError &error)
         {
             std::cerr << "PLY error: " << error.what() << '\n';
+            return 1;
+        }
+    }
+
+    if (command == "transform")
+    {
+        if (argc < 5)
+        {
+            return printUsageError(
+                "transform requires input, output, and transform arguments");
+        }
+
+        try
+        {
+            const auto transform = parseTransform(argc, argv);
+            const auto cloud = pct::io::readPly(argv[2]);
+            const auto result =
+                pct::geometry::transformPointCloud(cloud, transform);
+            pct::io::writePlyAscii(std::filesystem::path{argv[3]}, result);
+            std::cout << "wrote " << result.size()
+                      << " transformed points to " << argv[3] << '\n';
+            return 0;
+        }
+        catch (const pct::io::PlyError &error)
+        {
+            std::cerr << "PLY error: " << error.what() << '\n';
+            return 1;
+        }
+        catch (const std::invalid_argument &error)
+        {
+            std::cerr << "Transform error: " << error.what() << '\n';
             return 1;
         }
     }

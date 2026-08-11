@@ -1,6 +1,8 @@
 add_executable(pct_core_tests
     unit/test_point_cloud.cpp
     unit/test_ply_io.cpp
+    unit/test_statistics.cpp
+    unit/test_transform.cpp
 )
 
 target_link_libraries(pct_core_tests
