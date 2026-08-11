@@ -27,6 +27,7 @@ namespace pct
                                   std::uint8_t{56}};
             const Point point{Eigen::Vector3f{1.0F, 2.0F, 3.0F}, color};
 
+            // Use isApprox instead of == because floating-point operations have precision loss.
             EXPECT_TRUE(point.position.isApprox(Eigen::Vector3f{1.0F, 2.0F, 3.0F}));
             ASSERT_TRUE(point.color.has_value());
             EXPECT_EQ(*point.color, color);

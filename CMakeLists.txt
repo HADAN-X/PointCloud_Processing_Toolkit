@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
     PointCloudProcessingToolkit
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "A lightweight C++ point cloud processing toolkit"
     LANGUAGES CXX
 )
@@ -26,6 +26,7 @@ FetchContent_MakeAvailable(Eigen)
 
 add_library(pct_core
     src/core/point_cloud.cpp
+    src/io/ply_io.cpp
 )
 add_library(pct::core ALIAS pct_core)
 
@@ -71,4 +72,12 @@ if(BUILD_TESTING)
     add_test(NAME pct_cli_no_args COMMAND pointcloud_tool)
     add_test(NAME pct_cli_help COMMAND pointcloud_tool --help)
     add_test(NAME pct_cli_version COMMAND pointcloud_tool --version)
+    add_test(
+        NAME pct_cli_info
+        COMMAND pointcloud_tool info
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/ascii_xyz_rgb.ply"
+    )
+    set_tests_properties(
+        pct_cli_info PROPERTIES PASS_REGULAR_EXPRESSION "points: 2"
+    )
 endif()

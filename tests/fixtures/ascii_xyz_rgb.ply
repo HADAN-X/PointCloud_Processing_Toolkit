@@ -1,0 +1,13 @@
+ply
+format ascii 1.0
+comment XYZ RGB fixture
+element vertex 2
+property float x
+property float y
+property float z
+property uchar red
+property uchar green
+property uchar blue
+end_header
+1 2 3 255 0 128
+-1 -2 -3 4 5 6

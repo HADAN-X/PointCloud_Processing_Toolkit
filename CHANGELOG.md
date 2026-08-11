@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 No changes yet.
 
+## [0.2.0] - 2026-08-11
+
+### Added
+
+- ASCII PLY 1.0 reader and writer for XYZ and optional RGB point clouds.
+- Property-order-independent vertex parsing with ignored unknown scalar attributes.
+- `info` and `convert` command-line operations.
+- Valid, malformed, and round-trip PLY fixtures and automated tests.
+
+### Validation
+
+- MSVC Debug build and 23/23 tests.
+- MSVC Release build and 23/23 tests.
+
+### Limitations
+
+- Binary PLY and non-vertex data are not supported in this milestone.
+
 ## [0.1.0] - 2026-08-05
 
 ### Added
@@ -37,6 +55,7 @@ No changes yet.
 - Repository ignore rules and cross-platform line-ending policy.
 - MIT license.
 
-[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.1.0-skeleton...HEAD
+[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.2.0-ply-ascii...HEAD
+[0.2.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.2.0-ply-ascii
 [0.1.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.1.0-skeleton
 [0.0.1]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/commit/20dfc4fdcab73b0e4fc372bd920af92e3e900553

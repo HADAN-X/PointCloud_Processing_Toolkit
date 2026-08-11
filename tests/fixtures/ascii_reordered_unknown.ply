@@ -1,0 +1,13 @@
+ply
+format ascii 1.0
+comment reordered properties with an ignored scalar
+element vertex 1
+property uchar blue
+property float z
+property float confidence
+property float x
+property uchar red
+property float y
+property uchar green
+end_header
+30 3.0 0.75 1.0 10 2.0 20

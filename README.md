@@ -2,7 +2,7 @@
 
 A lightweight, testable C++ toolkit for point cloud I/O, filtering, spatial search, feature estimation, and rigid registration.
 
-> **Current status:** v0.1.0 project skeleton. The C++17/CMake build, core point cloud types, CLI smoke commands, and initial automated tests are available.
+> **Current status:** v0.2.0 ASCII PLY I/O. The toolkit can read, validate, inspect, and rewrite ASCII PLY 1.0 point clouds with XYZ and optional RGB attributes.
 
 ## Why This Project
 
@@ -19,20 +19,20 @@ The goal is not to replace PCL or Open3D. The project deliberately keeps a narro
 
 ## Capabilities
 
-| Capability | Status | Target milestone |
-|---|---|---|
-| Repository structure and development roadmap | Complete | v0.0.1 |
-| C++17/CMake project and core point cloud types | Complete | v0.1.0 |
-| ASCII PLY reader and writer | Planned | v0.2.0 |
-| Point cloud statistics and rigid transformations | Planned | v0.3.0 |
-| Voxel-grid downsampling | Planned | v0.4.0 |
-| Brute-force KNN/radius search and radius outlier removal | Planned | v0.5.0 |
-| Three-dimensional KD-tree | Planned | v0.6.0 |
-| PCA-based normal estimation | Planned | v0.7.0 |
-| Point-to-point ICP registration | Planned | v0.8.0 |
-| Unified command-line interface | Planned | v0.9.0 |
-| Benchmarks, CI, and real-data validation | Planned | v0.10.0 |
-| Documented and reproducible release | Planned | v1.0.0 |
+| Capability                                               | Status   | Target milestone |
+| -------------------------------------------------------- | -------- | ---------------- |
+| Repository structure and development roadmap             | Complete | v0.0.1           |
+| C++17/CMake project and core point cloud types           | Complete | v0.1.0           |
+| ASCII PLY reader and writer                              | Complete | v0.2.0           |
+| Point cloud statistics and rigid transformations         | Planned  | v0.3.0           |
+| Voxel-grid downsampling                                  | Planned  | v0.4.0           |
+| Brute-force KNN/radius search and radius outlier removal | Planned  | v0.5.0           |
+| Three-dimensional KD-tree                                | Planned  | v0.6.0           |
+| PCA-based normal estimation                              | Planned  | v0.7.0           |
+| Point-to-point ICP registration                          | Planned  | v0.8.0           |
+| Unified command-line interface                           | Planned  | v0.9.0           |
+| Benchmarks, CI, and real-data validation                 | Planned  | v0.10.0          |
+| Documented and reproducible release                      | Planned  | v1.0.0           |
 
 Statuses are updated only after implementation, tests, documentation, and verification are complete.
 
@@ -65,25 +65,34 @@ ctest --preset windows-msvc-release --output-on-failure
 
 The first configure downloads pinned Eigen and GoogleTest sources into the ignored `build/` directory. Subsequent builds reuse the local dependency cache.
 
-The v0.1.0 milestone has been verified with:
+The v0.2.0 milestone has been verified with:
 
 - Visual Studio Community 2022;
 - MSVC 19.41.34120;
 - Windows SDK 10.0.22621.0;
 - CMake 4.3.2;
-- nine passing tests in both Debug and Release configurations.
+- 23 passing tests in both Debug and Release configurations.
 
 ## Command-Line Usage
 
-The initial CLI exposes help and version information:
+The CLI exposes help, version, PLY inspection, and ASCII PLY rewrite operations:
 
 ```powershell
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe'
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' --help
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' --version
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' info input.ply
+& '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' convert input.ply output.ply
 ```
 
-Running without arguments displays help and exits successfully. Unknown arguments or extra arguments display an error and return exit code 2.
+Running without arguments displays help and exits successfully. PLY file or parsing failures return exit code 1. Unknown commands, missing arguments, or extra arguments return exit code 2.
+
+Example output from `info`:
+
+```text
+points: 2
+has_color: true
+```
 
 ## Current Structure
 
@@ -91,21 +100,33 @@ Running without arguments displays help and exits successfully. Unknown argument
 PointCloud_Processing_Toolkit/
 ├── app/
 │   └── main.cpp
-├── include/pct/core/
-│   ├── point.hpp
-│   └── point_cloud.hpp
-├── src/core/
-│   └── point_cloud.cpp
+├── include/pct/
+│   ├── core/
+│   │   ├── point.hpp
+│   │   └── point_cloud.hpp
+│   └── io/
+│       └── ply_io.hpp
+├── src/
+│   ├── core/
+│   │   └── point_cloud.cpp
+│   └── io/
+│       └── ply_io.cpp
 ├── tests/
+│   ├── fixtures/
+│   │   ├── ascii_xyz.ply
+│   │   ├── ascii_xyz_rgb.ply
+│   │   ├── ascii_reordered_unknown.ply
+│   │   └── malformed_*.ply
 │   ├── unit/
-│   │   └── test_point_cloud.cpp
+│   │   ├── test_point_cloud.cpp
+│   │   └── test_ply_io.cpp
 │   └── CMakeLists.txt
 ├── CMakeLists.txt
 ├── CMakePresets.json
 └── README.md
 ```
 
-Directories for I/O, filters, search, features, registration, benchmarks, and data will be introduced when their first real implementation is added. Empty architecture placeholders are intentionally not committed.
+Directories for filters, search, features, registration, benchmarks, and data will be introduced when their first real implementation is added. Empty architecture placeholders are intentionally not committed.
 
 ## Core API
 
@@ -124,9 +145,15 @@ The `pct::PointCloud` type owns an aligned point container and provides:
 
 File I/O and processing algorithms are intentionally kept outside `PointCloud` so that storage, serialization, and algorithms remain separate responsibilities.
 
+The `pct::io` API currently provides:
+
+- `readPly()` for validated ASCII PLY 1.0 input;
+- `writePlyAscii()` for XYZ or XYZRGB output;
+- `PlyError` for file access, format, schema, and numeric validation failures.
+
 ## Validation
 
-The v0.1.0 test suite covers:
+The v0.2.0 test suite covers:
 
 - CLI startup without arguments;
 - CLI help and version commands;
@@ -136,6 +163,13 @@ The v0.1.0 test suite covers:
 - copy/move insertion and access;
 - checked out-of-range access;
 - point cloud clearing.
+- ASCII XYZ and XYZRGB input;
+- reordered and unknown scalar vertex properties;
+- XYZ and XYZRGB read/write/read round trips;
+- missing files, binary format, missing coordinates, and point-count mismatches;
+- non-finite coordinates and incomplete RGB schemas;
+- partially colored point clouds and prevention of partial output files;
+- the CLI `info` command against a real fixture.
 
 Future algorithms will use four levels of validation:
 
@@ -145,6 +179,27 @@ Future algorithms will use four levels of validation:
 4. **Real-data experiments:** licensed public point clouds processed with documented commands and parameters.
 
 All benchmark claims will identify the build type, compiler, hardware, input scale, query count, and aggregation method.
+
+## PLY Support and Limitations
+
+The v0.2.0 milestone intentionally supports a narrow, explicit PLY subset:
+
+- ASCII PLY format 1.0;
+- required `x`, `y`, and `z` vertex properties;
+- optional `red`, `green`, and `blue` properties;
+- arbitrary ordering of supported vertex properties;
+- ignored unknown scalar vertex properties;
+- comments and `obj_info` header entries.
+
+Current limitations:
+
+- binary little-endian and big-endian PLY are rejected;
+- face, edge, and other non-vertex data are not loaded or preserved;
+- vertex list properties are not supported;
+- unknown vertex attributes are not preserved when rewriting a file;
+- coordinates are stored as single-precision floats;
+- all points must either have RGB color or have no color when writing;
+- this milestone does not target optimized loading of very large ASCII files.
 
 ## Design Principles
 
