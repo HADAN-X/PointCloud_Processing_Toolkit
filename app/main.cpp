@@ -1,15 +1,19 @@
-#include "pct/io/ply_io.hpp"
+#include "pct/filters/voxel_grid.hpp"
 #include "pct/geometry/statistics.hpp"
 #include "pct/geometry/transform.hpp"
+#include "pct/io/ply_io.hpp"
+
 #include <algorithm>
-#include <filesystem>
-#include <iostream>
-#include <string_view>
 #include <charconv>
+#include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <iomanip>
+#include <iostream>
 #include <stdexcept>
+#include <string_view>
 #include <string>
+
 namespace
 {
 
@@ -32,7 +36,9 @@ namespace
             << "  pointcloud_tool transform <input.ply> <output.ply> "
                "--rotate-z <degrees>\n"
             << "  pointcloud_tool transform <input.ply> <output.ply> "
-               "--matrix <16 row-major values>\n";
+               "--matrix <16 row-major values>\n"
+            << "  pointcloud_tool voxel <input.ply> <output.ply> "
+               "--leaf-size <size>\n";
     }
 
     int printUsageError(std::string_view message)
@@ -270,6 +276,53 @@ int main(int argc, char *argv[])
         catch (const std::invalid_argument &error)
         {
             std::cerr << "Transform error: " << error.what() << '\n';
+            return 1;
+        }
+    }
+
+    if (command == "voxel")
+    {
+        if (argc != 6 || std::string_view{argv[4]} != "--leaf-size")
+        {
+            return printUsageError(
+                "voxel requires input, output, and --leaf-size <size>");
+        }
+
+        try
+        {
+            const float leaf_size = parseFiniteFloat(argv[5]);
+            const auto cloud = pct::io::readPly(argv[2]);
+            const auto start = std::chrono::steady_clock::now();
+            const auto result =
+                pct::filters::voxelGridDownsample(cloud, leaf_size);
+            const auto stop = std::chrono::steady_clock::now();
+            const double elapsed_ms =
+                std::chrono::duration<double, std::milli>(stop - start)
+                    .count();
+            const double retention_percent =
+                cloud.empty()
+                    ? 0.0
+                    : 100.0 * static_cast<double>(result.size()) /
+                          static_cast<double>(cloud.size());
+
+            pct::io::writePlyAscii(std::filesystem::path{argv[3]}, result);
+            std::cout << std::fixed << std::setprecision(3)
+                      << "input_points: " << cloud.size() << '\n'
+                      << "output_points: " << result.size() << '\n'
+                      << "retention_ratio_percent: " << retention_percent
+                      << '\n'
+                      << "processing_time_ms: " << elapsed_ms << '\n'
+                      << "wrote: " << argv[3] << '\n';
+            return 0;
+        }
+        catch (const pct::io::PlyError &error)
+        {
+            std::cerr << "PLY error: " << error.what() << '\n';
+            return 1;
+        }
+        catch (const std::exception &error)
+        {
+            std::cerr << "Voxel error: " << error.what() << '\n';
             return 1;
         }
     }
