@@ -1,0 +1,16 @@
+ply
+format ascii 1.0
+comment voxel-grid fixture
+element vertex 5
+property float x
+property float y
+property float z
+property uchar red
+property uchar green
+property uchar blue
+end_header
+0.1 0.1 0.1 10 20 30
+0.2 0.3 0.4 20 30 40
+1.1 0.1 0.1 100 110 120
+1.4 0.2 0.3 120 130 140
+1.8 0.8 0.9 140 150 160

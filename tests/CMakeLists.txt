@@ -3,6 +3,7 @@ add_executable(pct_core_tests
     unit/test_ply_io.cpp
     unit/test_statistics.cpp
     unit/test_transform.cpp
+    unit/test_voxel_grid.cpp
 )
 
 target_link_libraries(pct_core_tests
