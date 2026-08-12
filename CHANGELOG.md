@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 No changes yet.
 
+## [0.4.0] - 2026-08-12
+
+### Added
+
+- Deterministic hash-based voxel-grid downsampling with signed 64-bit voxel indices.
+- Position-centroid and RGB-mean aggregation with explicit attribute validation.
+- `voxel --leaf-size` command-line operation with point-count, retention, and processing-time metrics.
+- Reproducible synthetic benchmark with runtime and peak-resident-memory reporting.
+- Analytical coverage for negative coordinates, voxel boundaries, input order, and index overflow.
+- Before-and-after visualization with documented point counts and leaf size.
+
+### Validation
+
+- MSVC Debug build and 60/60 tests.
+- MSVC Release build and 60/60 tests.
+- Five-run Release medians recorded at 10,000, 100,000, and 1,000,000 synthetic points for leaf sizes 0.5 and 5.0.
+
+### Limitations
+
+- Voxel output is sorted for determinism, adding `O(V log V)` work after expected `O(N)` hash aggregation.
+- The voxel grid is anchored at the coordinate origin and currently runs in memory on one thread.
+- Peak-resident-memory results include the complete benchmark process.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added
@@ -75,7 +98,8 @@ No changes yet.
 - Repository ignore rules and cross-platform line-ending policy.
 - MIT license.
 
-[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.3.0-geometry...HEAD
+[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.4.0-voxel-grid...HEAD
+[0.4.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.4.0-voxel-grid
 [0.3.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.3.0-geometry
 [0.2.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.2.0-ply-ascii
 [0.1.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.1.0-skeleton
