@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
     PointCloudProcessingToolkit
-    VERSION 0.3.0
+    VERSION 0.4.0
     DESCRIPTION "A lightweight C++ point cloud processing toolkit"
     LANGUAGES CXX
 )
@@ -29,6 +29,7 @@ add_library(pct_core
     src/io/ply_io.cpp
     src/geometry/transform.cpp
     src/geometry/statistics.cpp
+    src/filters/voxel_grid.cpp
 )
 add_library(pct::core ALIAS pct_core)
 
@@ -44,6 +45,28 @@ if(MSVC)
     target_compile_options(pct_core PRIVATE /W4 /permissive- /Zc:__cplusplus)
 else()
     target_compile_options(pct_core PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+option(PCT_BUILD_BENCHMARKS "Build reproducible benchmark executables" ON)
+if(PCT_BUILD_BENCHMARKS)
+    add_executable(
+        pointcloud_voxel_benchmark
+        benchmarks/benchmark_voxel_grid.cpp
+    )
+    target_link_libraries(pointcloud_voxel_benchmark PRIVATE pct::core)
+    target_compile_features(pointcloud_voxel_benchmark PRIVATE cxx_std_17)
+    if(WIN32)
+        target_link_libraries(pointcloud_voxel_benchmark PRIVATE Psapi)
+    endif()
+    if(MSVC)
+        target_compile_options(
+            pointcloud_voxel_benchmark PRIVATE /W4 /permissive- /Zc:__cplusplus
+        )
+    else()
+        target_compile_options(
+            pointcloud_voxel_benchmark PRIVATE -Wall -Wextra -Wpedantic
+        )
+    endif()
 endif()
 
 add_executable(pointcloud_tool app/main.cpp)
@@ -106,4 +129,18 @@ if(BUILD_TESTING)
             0 1 0 2
             0 0 1 3
             0 0 0 1)
+        add_test(NAME pct_cli_voxel COMMAND pointcloud_tool voxel
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/voxel_input_xyz_rgb.ply"
+            "${CMAKE_CURRENT_BINARY_DIR}/voxel_output.ply"
+            --leaf-size 1)
+    set_tests_properties(
+        pct_cli_voxel PROPERTIES
+        PASS_REGULAR_EXPRESSION "output_points: 2"
+    )
+
+    add_test(NAME pct_cli_voxel_invalid_leaf COMMAND pointcloud_tool voxel
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/voxel_input_xyz_rgb.ply"
+            "${CMAKE_CURRENT_BINARY_DIR}/voxel_invalid.ply"
+            --leaf-size 0)
+    set_tests_properties(pct_cli_voxel_invalid_leaf PROPERTIES WILL_FAIL TRUE)
 endif()

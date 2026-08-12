@@ -2,7 +2,7 @@
 
 A lightweight, testable C++ toolkit for point cloud I/O, filtering, spatial search, feature estimation, and rigid registration.
 
-> **Current status:** v0.3.0 geometry utilities. The toolkit can compute point-cloud statistics and apply validated rigid transformations while preserving optional RGB attributes.
+> **Current status:** v0.4.0 voxel-grid downsampling. The toolkit can reduce point-cloud density with deterministic voxel hashing, centroid and RGB aggregation, validated indexing, and reproducible runtime and memory measurements.
 
 ## Why This Project
 
@@ -25,7 +25,7 @@ The goal is not to replace PCL or Open3D. The project deliberately keeps a narro
 | C++17/CMake project and core point cloud types           | Complete | v0.1.0           |
 | ASCII PLY reader and writer                              | Complete | v0.2.0           |
 | Point cloud statistics and rigid transformations         | Complete | v0.3.0           |
-| Voxel-grid downsampling                                  | Planned  | v0.4.0           |
+| Voxel-grid downsampling                                  | Complete | v0.4.0           |
 | Brute-force KNN/radius search and radius outlier removal | Planned  | v0.5.0           |
 | Three-dimensional KD-tree                                | Planned  | v0.6.0           |
 | PCA-based normal estimation                              | Planned  | v0.7.0           |
@@ -65,17 +65,17 @@ ctest --preset windows-msvc-release --output-on-failure
 
 The first configure downloads pinned Eigen and GoogleTest sources into the ignored `build/` directory. Subsequent builds reuse the local dependency cache.
 
-The v0.3.0 milestone has been verified with:
+The v0.4.0 milestone has been verified with:
 
 - Visual Studio Community 2022;
 - MSVC 19.41.34120;
 - Windows SDK 10.0.22621.0;
 - CMake 4.3.2;
-- 44 passing tests in both Debug and Release configurations.
+- 60 passing tests in both Debug and Release configurations.
 
 ## Command-Line Usage
 
-The CLI exposes help, version, PLY inspection and statistics, ASCII PLY rewrite, and rigid-transform operations:
+The CLI exposes help, version, PLY inspection and statistics, ASCII PLY rewrite, rigid transforms, and voxel-grid downsampling:
 
 ```powershell
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe'
@@ -84,12 +84,25 @@ The CLI exposes help, version, PLY inspection and statistics, ASCII PLY rewrite,
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' info input.ply
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' stats input.ply
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' convert input.ply output.ply
+& '.\build\windows-msvc-release\Release\pointcloud_tool.exe' voxel input.ply output.ply --leaf-size 0.5
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --translate 1 2 3
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --rotate-z 90
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --matrix 1 0 0 1 0 1 0 2 0 0 1 3 0 0 0 1
 ```
 
 The library transformation API accepts angles in radians. The CLI accepts rotation angles in degrees and matrix values in row-major order. Running without arguments displays help and exits successfully. PLY, numeric, or geometry failures return exit code 1. Unknown commands, missing arguments, or extra arguments return exit code 2.
+
+The `voxel` command reports input and output point counts, retention percentage, and algorithm processing time. The reported processing time excludes PLY input and output.
+
+Example voxel output:
+
+```text
+input_points: 500027
+output_points: 7285
+retention_ratio_percent: 1.457
+processing_time_ms: <machine-dependent>
+wrote: output.ply
+```
 
 Example output from `info`:
 
@@ -107,16 +120,53 @@ bbox_min: -1 -2 -3
 bbox_max: 1 2 3
 ```
 
+## Voxel-Grid Result
+
+The example below uses the same camera view before and after filtering. A leaf size of `0.1` reduces 500,027 points to 7,285 points, retaining approximately 1.457% of the input.
+
+![Voxel-grid downsampling before and after](docs/images/voxel_before_after.png)
+
+Each occupied voxel is represented by the centroid of its positions. When every input point has RGB, color channels are averaged independently and rounded to the nearest 8-bit value.
+
+## Voxel-Grid Benchmark
+
+The synthetic benchmark uses a fixed seed (`20260811`) and uniformly distributed coordinates in `[-100, 100]^3`. Each table entry is the median of five independent Release-process runs. Peak RSS includes the entire process, not only the voxel hash table.
+
+Environment: Intel Core i7-9750H, 15.9 GiB RAM, Windows 10.0.26200, MSVC 19.41.34120, and CMake 4.3.2.
+
+| Input points | Leaf size | Output points | Median time (ms) | Median peak RSS (MiB) |
+| ---: | ---: | ---: | ---: | ---: |
+| 10,000 | 0.5 | 9,999 | 3.713 | 5.988 |
+| 100,000 | 0.5 | 99,917 | 52.194 | 22.340 |
+| 1,000,000 | 0.5 | 992,150 | 822.419 | 179.840 |
+| 10,000 | 5.0 | 9,280 | 4.195 | 5.848 |
+| 100,000 | 5.0 | 50,631 | 28.183 | 14.312 |
+| 1,000,000 | 5.0 | 64,000 | 113.447 | 29.918 |
+
+The larger leaf size reduces the number of occupied voxels substantially at higher input scales, lowering both runtime and peak memory. The 10,000-point timing difference is small enough to be dominated by fixed overhead and normal run-to-run variation; it is not treated as a speedup claim.
+
+Run the benchmark with:
+
+```powershell
+& '.\build\windows-msvc-release\Release\pointcloud_voxel_benchmark.exe' 1000000 0.5
+```
+
 ## Current Structure
 
 ```text
 PointCloud_Processing_Toolkit/
 ├── app/
 │   └── main.cpp
+├── benchmarks/
+│   └── benchmark_voxel_grid.cpp
+├── docs/images/
+│   └── voxel_before_after.png
 ├── include/pct/
 │   ├── core/
 │   │   ├── point.hpp
 │   │   └── point_cloud.hpp
+│   ├── filters/
+│   │   └── voxel_grid.hpp
 │   ├── geometry/
 │   │   ├── statistics.hpp
 │   │   └── transform.hpp
@@ -125,6 +175,8 @@ PointCloud_Processing_Toolkit/
 ├── src/
 │   ├── core/
 │   │   └── point_cloud.cpp
+│   ├── filters/
+│   │   └── voxel_grid.cpp
 │   ├── geometry/
 │   │   ├── statistics.cpp
 │   │   └── transform.cpp
@@ -135,12 +187,14 @@ PointCloud_Processing_Toolkit/
 │   │   ├── ascii_xyz.ply
 │   │   ├── ascii_xyz_rgb.ply
 │   │   ├── ascii_reordered_unknown.ply
+│   │   ├── voxel_input_xyz_rgb.ply
 │   │   └── malformed_*.ply
 │   ├── unit/
 │   │   ├── test_point_cloud.cpp
 │   │   ├── test_ply_io.cpp
 │   │   ├── test_statistics.cpp
-│   │   └── test_transform.cpp
+│   │   ├── test_transform.cpp
+│   │   └── test_voxel_grid.cpp
 │   └── CMakeLists.txt
 ├── CMakeLists.txt
 ├── CMakePresets.json
@@ -180,9 +234,18 @@ The `pct::geometry` API currently provides:
 - validation of finite homogeneous matrices, rotation orthogonality, and determinant;
 - point-cloud transformation with optional RGB attributes preserved.
 
+The `pct::filters` API currently provides:
+
+- `voxelGridDownsample()` with a finite, positive leaf size;
+- signed 64-bit voxel indices computed with `floor(position / leaf_size)`;
+- double-precision position accumulation and centroid output;
+- RGB mean aggregation for fully colored clouds and preservation of uncolored clouds;
+- rejection of partially colored clouds, non-finite coordinates, and voxel-index overflow;
+- lexicographically ordered voxel output for deterministic results.
+
 ## Validation
 
-The v0.3.0 test suite covers:
+The v0.4.0 test suite covers:
 
 - CLI startup without arguments;
 - CLI help and version commands;
@@ -206,6 +269,13 @@ The v0.3.0 test suite covers:
 - preservation of optional RGB attributes during transformation;
 - rejection of non-finite coordinates, non-finite matrices, scaling, and invalid homogeneous rows;
 - the CLI `stats` and `transform` commands with translation, rotation, and row-major matrix input.
+- empty-cloud and analytical voxel-centroid behavior;
+- positive, negative, and exact voxel-boundary coordinates;
+- RGB aggregation, uncolored input, and rejection of partially colored input;
+- invalid leaf sizes, non-finite positions, and signed 64-bit voxel-index overflow;
+- deterministic voxel ordering and shuffled-input equivalence;
+- the CLI `voxel` command and its invalid-leaf failure path;
+- Release benchmark runs at 10,000, 100,000, and 1,000,000 synthetic points with two leaf sizes.
 
 Future algorithms will use four levels of validation:
 
@@ -240,6 +310,12 @@ Current limitations:
 - transformations are restricted to finite rigid matrices; scaling, shear, reflection, and projective transforms are rejected;
 - axis-aligned bounding boxes depend on the current coordinate frame and must be recomputed after rotation;
 - the geometry functions process point clouds in memory and do not yet provide parallel or streaming execution.
+- voxel hashing has expected linear aggregation time but can degrade under severe hash collisions;
+- deterministic voxel ordering adds `O(V log V)` work after aggregation, where `V` is the number of occupied voxels;
+- the voxel grid is anchored at the coordinate origin and does not expose a configurable grid origin;
+- voxel processing is currently single-threaded and in memory;
+- only positions and optional RGB are aggregated, and unknown PLY attributes are not preserved;
+- benchmark peak RSS measures the complete process rather than filter-exclusive allocation.
 
 ## Design Principles
 
