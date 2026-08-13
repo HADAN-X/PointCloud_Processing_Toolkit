@@ -2,7 +2,7 @@
 
 A lightweight, testable C++ toolkit for point cloud I/O, filtering, spatial search, feature estimation, and rigid registration.
 
-> **Current status:** v0.4.0 voxel-grid downsampling. The toolkit can reduce point-cloud density with deterministic voxel hashing, centroid and RGB aggregation, validated indexing, and reproducible runtime and memory measurements.
+> **Current status:** v0.5.0 neighborhood search and outlier removal. The toolkit now provides deterministic brute-force KNN and radius queries as a correctness baseline, plus radius-based removal of isolated points with explicit neighbor semantics and CLI metrics.
 
 ## Why This Project
 
@@ -26,7 +26,7 @@ The goal is not to replace PCL or Open3D. The project deliberately keeps a narro
 | ASCII PLY reader and writer                              | Complete | v0.2.0           |
 | Point cloud statistics and rigid transformations         | Complete | v0.3.0           |
 | Voxel-grid downsampling                                  | Complete | v0.4.0           |
-| Brute-force KNN/radius search and radius outlier removal | Planned  | v0.5.0           |
+| Brute-force KNN/radius search and radius outlier removal | Complete | v0.5.0           |
 | Three-dimensional KD-tree                                | Planned  | v0.6.0           |
 | PCA-based normal estimation                              | Planned  | v0.7.0           |
 | Point-to-point ICP registration                          | Planned  | v0.8.0           |
@@ -65,17 +65,17 @@ ctest --preset windows-msvc-release --output-on-failure
 
 The first configure downloads pinned Eigen and GoogleTest sources into the ignored `build/` directory. Subsequent builds reuse the local dependency cache.
 
-The v0.4.0 milestone has been verified with:
+The v0.5.0 milestone has been verified with:
 
 - Visual Studio Community 2022;
 - MSVC 19.41.34120;
 - Windows SDK 10.0.22621.0;
 - CMake 4.3.2;
-- 60 passing tests in both Debug and Release configurations.
+- 84 passing tests in both Debug and Release configurations.
 
 ## Command-Line Usage
 
-The CLI exposes help, version, PLY inspection and statistics, ASCII PLY rewrite, rigid transforms, and voxel-grid downsampling:
+The CLI exposes help, version, PLY inspection and statistics, ASCII PLY rewrite, rigid transforms, voxel-grid downsampling, and radius outlier removal:
 
 ```powershell
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe'
@@ -85,6 +85,7 @@ The CLI exposes help, version, PLY inspection and statistics, ASCII PLY rewrite,
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' stats input.ply
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' convert input.ply output.ply
 & '.\build\windows-msvc-release\Release\pointcloud_tool.exe' voxel input.ply output.ply --leaf-size 0.5
+& '.\build\windows-msvc-release\Release\pointcloud_tool.exe' radius-filter input.ply output.ply --radius 0.5 --min-neighbors 8
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --translate 1 2 3
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --rotate-z 90
 & '.\build\windows-msvc-debug\Debug\pointcloud_tool.exe' transform input.ply output.ply --matrix 1 0 0 1 0 1 0 2 0 0 1 3 0 0 0 1
@@ -103,6 +104,23 @@ retention_ratio_percent: 1.457
 processing_time_ms: <machine-dependent>
 wrote: output.ply
 ```
+
+The `radius-filter` command applies radius outlier removal. The query point itself is excluded from its neighbor count, while a different point at the same coordinates remains a valid neighbor. The command reports the selected parameters as well as input, output, removed-point, retention, and algorithm-time metrics.
+
+Example radius-filter output for the six-point validation fixture:
+
+```text
+input_points: 6
+output_points: 5
+removed_points: 1
+retention_ratio_percent: 83.333
+radius: 1.500
+min_neighbors: 2
+processing_time_ms: <machine-dependent>
+wrote: output.ply
+```
+
+Radius and minimum-neighbor parameters depend on coordinate scale and sampling density. On the same fixture, `radius=0.5, min_neighbors=1` removes all six points because no distinct coordinates are close enough; `radius=100, min_neighbors=6` also removes all points because each point has only five other candidates.
 
 Example output from `info`:
 
@@ -166,35 +184,44 @@ PointCloud_Processing_Toolkit/
 │   │   ├── point.hpp
 │   │   └── point_cloud.hpp
 │   ├── filters/
+│   │   ├── radius_outlier.hpp
 │   │   └── voxel_grid.hpp
 │   ├── geometry/
 │   │   ├── statistics.hpp
 │   │   └── transform.hpp
-│   └── io/
-│       └── ply_io.hpp
+│   ├── io/
+│   │   └── ply_io.hpp
+│   └── search/
+│       └── brute_force.hpp
 ├── src/
 │   ├── core/
 │   │   └── point_cloud.cpp
 │   ├── filters/
+│   │   ├── radius_outlier.cpp
 │   │   └── voxel_grid.cpp
 │   ├── geometry/
 │   │   ├── statistics.cpp
 │   │   └── transform.cpp
-│   └── io/
-│       └── ply_io.cpp
+│   ├── io/
+│   │   └── ply_io.cpp
+│   └── search/
+│       └── brute_force.cpp
 ├── tests/
 │   ├── fixtures/
 │   │   ├── ascii_xyz.ply
 │   │   ├── ascii_xyz_rgb.ply
 │   │   ├── ascii_reordered_unknown.ply
 │   │   ├── voxel_input_xyz_rgb.ply
+│   │   ├── radius_filter_input_xyz_rgb.ply
 │   │   └── malformed_*.ply
 │   ├── unit/
 │   │   ├── test_point_cloud.cpp
 │   │   ├── test_ply_io.cpp
 │   │   ├── test_statistics.cpp
 │   │   ├── test_transform.cpp
-│   │   └── test_voxel_grid.cpp
+│   │   ├── test_voxel_grid.cpp
+│   │   ├── test_brute_force.cpp
+│   │   └── test_radius_outlier.cpp
 │   └── CMakeLists.txt
 ├── CMakeLists.txt
 ├── CMakePresets.json
@@ -241,11 +268,22 @@ The `pct::filters` API currently provides:
 - double-precision position accumulation and centroid output;
 - RGB mean aggregation for fully colored clouds and preservation of uncolored clouds;
 - rejection of partially colored clouds, non-finite coordinates, and voxel-index overflow;
-- lexicographically ordered voxel output for deterministic results.
+- lexicographically ordered voxel output for deterministic results;
+- radius outlier removal with a finite, non-negative radius and a positive minimum-neighbor count;
+- explicit exclusion of the query point's index while retaining coincident points at other indices;
+- preservation of input order, positions, and optional RGB attributes for retained points.
+
+The `pct::search` API currently provides:
+
+- brute-force KNN and radius queries that scan every input point;
+- neighbor results containing the original point index and a double-precision squared distance;
+- optional exclusion of one point index, without discarding other coincident points;
+- inclusive radius boundaries and deterministic ordering by distance and then index;
+- explicit rejection of non-finite queries, non-finite point positions, invalid radii, and out-of-range excluded indices.
 
 ## Validation
 
-The v0.4.0 test suite covers:
+The v0.5.0 test suite covers:
 
 - CLI startup without arguments;
 - CLI help and version commands;
@@ -276,6 +314,14 @@ The v0.4.0 test suite covers:
 - deterministic voxel ordering and shuffled-input equivalence;
 - the CLI `voxel` command and its invalid-leaf failure path;
 - Release benchmark runs at 10,000, 100,000, and 1,000,000 synthetic points with two leaf sizes.
+- analytical KNN and radius queries on a line and a regular grid;
+- deterministic distance ordering and index tie-breaking;
+- empty clouds, zero `k`, `k` greater than the cloud size, inclusive radius boundaries, and maximum finite radii;
+- coincident points at distinct indices and explicit query-index exclusion;
+- KNN results compared item by item with an independent full-sort baseline;
+- radius outlier removal on a colored cluster with one isolated point;
+- invalid radius and neighbor-count paths, parameter sensitivity, and complete-removal cases;
+- the `radius-filter` CLI success and invalid-parameter paths.
 
 Future algorithms will use four levels of validation:
 
@@ -316,6 +362,10 @@ Current limitations:
 - voxel processing is currently single-threaded and in memory;
 - only positions and optional RGB are aggregated, and unknown PLY attributes are not preserved;
 - benchmark peak RSS measures the complete process rather than filter-exclusive allocation.
+- brute-force neighborhood queries scan every point and are intended as a correctness baseline rather than a high-performance spatial index;
+- ordered KNN and radius results add sorting work after distance evaluation;
+- repeated brute-force radius queries make the current radius outlier filter unsuitable for large point clouds;
+- radius-filter parameters depend on coordinate scale and sampling density and can remove valid sparse structures when poorly chosen.
 
 ## Design Principles
 

@@ -4,6 +4,8 @@ add_executable(pct_core_tests
     unit/test_statistics.cpp
     unit/test_transform.cpp
     unit/test_voxel_grid.cpp
+    unit/test_brute_force.cpp
+    unit/test_radius_outlier.cpp
 )
 
 target_link_libraries(pct_core_tests

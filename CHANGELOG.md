@@ -8,6 +8,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 No changes yet.
 
+## [0.5.0] - 2026-08-13
+
+### Added
+
+- Deterministic brute-force KNN and radius search with squared-distance results and optional point-index exclusion.
+- Radius outlier removal with explicit self-exclusion and preservation of point order and optional RGB attributes.
+- `radius-filter --radius --min-neighbors` command-line operation with removal, retention, parameter, and processing-time reporting.
+- Analytical coverage for line, regular-grid, duplicate, empty, boundary, isolated-point, and invalid-input cases.
+- Independent full-sort baseline comparison for KNN correctness.
+
+### Validation
+
+- MSVC Debug build and 84/84 tests.
+- MSVC Release build and 84/84 tests.
+- End-to-end filtering retained five clustered colored points and removed one isolated point with `radius=1.5` and `min_neighbors=2`.
+- Parameter-sensitivity checks demonstrated complete removal with `radius=0.5, min_neighbors=1` and with `radius=100, min_neighbors=6` on the six-point fixture.
+
+### Limitations
+
+- Brute-force queries scan every point and are intended as a correctness baseline for the forthcoming spatial index.
+- Ordered radius results add result-sorting cost, and repeated brute-force queries make radius outlier removal unsuitable for large point clouds.
+- Filter parameters depend on coordinate scale and sampling density and can remove valid sparse structures when poorly chosen.
+
 ## [0.4.0] - 2026-08-12
 
 ### Added
@@ -98,7 +121,8 @@ No changes yet.
 - Repository ignore rules and cross-platform line-ending policy.
 - MIT license.
 
-[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.4.0-voxel-grid...HEAD
+[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.5.0-neighborhood...HEAD
+[0.5.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.5.0-neighborhood
 [0.4.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.4.0-voxel-grid
 [0.3.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.3.0-geometry
 [0.2.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.2.0-ply-ascii
