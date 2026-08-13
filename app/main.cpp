@@ -2,6 +2,7 @@
 #include "pct/geometry/statistics.hpp"
 #include "pct/geometry/transform.hpp"
 #include "pct/io/ply_io.hpp"
+#include "pct/filters/radius_outlier.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -13,6 +14,7 @@
 #include <stdexcept>
 #include <string_view>
 #include <string>
+#include <system_error>
 
 namespace
 {
@@ -38,7 +40,9 @@ namespace
             << "  pointcloud_tool transform <input.ply> <output.ply> "
                "--matrix <16 row-major values>\n"
             << "  pointcloud_tool voxel <input.ply> <output.ply> "
-               "--leaf-size <size>\n";
+               "--leaf-size <size>\n"
+            << "  pointcloud_tool radius-filter <input.ply> <output.ply> "
+               "--radius <radius> --min-neighbors <count>\n";
     }
 
     int printUsageError(std::string_view message)
@@ -68,6 +72,20 @@ namespace
         if (result.ec != std::errc{} || result.ptr != end || !std::isfinite(value))
         {
             throw std::invalid_argument("Invalid float: " + std::string{text});
+        }
+        return value;
+    }
+
+    std::size_t parsePositiveSize(std::string_view text)
+    {
+        std::size_t value = 0;
+        const char *const begin = text.data();
+        const char *const end = begin + text.size();
+        const auto result = std::from_chars(begin, end, value);
+        if (result.ec != std::errc{} || result.ptr != end || value == 0U)
+        {
+            throw std::invalid_argument(
+                "value must be a positive integer: " + std::string{text});
         }
         return value;
     }
@@ -323,6 +341,50 @@ int main(int argc, char *argv[])
         catch (const std::exception &error)
         {
             std::cerr << "Voxel error: " << error.what() << '\n';
+            return 1;
+        }
+    }
+
+    if (command == "radius-filter")
+    {
+        if (argc != 8 || std::string_view{argv[4]} != "--radius" || std::string_view{argv[6]} != "--min-neighbors")
+        {
+            return printUsageError("radius-filter requires input, output, --radius <radius>, "
+                                   "and --min-neighbors <count>");
+        }
+
+        try
+        {
+            const float radius = parseFiniteFloat(argv[5]);
+            const std::size_t min_neighbors = parsePositiveSize(argv[7]);
+            const auto cloud = pct::io::readPly(argv[2]);
+            const auto start = std::chrono::steady_clock::now();
+            const auto result = pct::filters::radiusOutlierRemoval(cloud, radius, min_neighbors);
+            const auto stop = std::chrono::steady_clock::now();
+            const double elapsed_ms = std::chrono::duration<double, std::milli>(stop - start).count();
+            const std::size_t removed_points = cloud.size() - result.size();
+            const double retention_percent = cloud.empty() ? 0.0 : 100 * static_cast<double>(result.size()) / static_cast<double>(cloud.size());
+            pct::io::writePlyAscii(std::filesystem::path{argv[3]}, result);
+            std::cout << std::fixed << std::setprecision(3)
+                      << "input_points: " << cloud.size() << '\n'
+                      << "output_points: " << result.size() << '\n'
+                      << "removed_points: " << removed_points << '\n'
+                      << "retention_ratio_percent: " << retention_percent
+                      << '\n'
+                      << "radius: " << radius << '\n'
+                      << "min_neighbors: " << min_neighbors << '\n'
+                      << "processing_time_ms: " << elapsed_ms << '\n'
+                      << "wrote: " << argv[3] << '\n';
+            return 0;
+        }
+        catch (const pct::io::PlyError &error)
+        {
+            std::cerr << "PLY error: " << error.what() << '\n';
+            return 1;
+        }
+        catch (const std::exception &error)
+        {
+            std::cerr << "Radius filter error: " << error.what() << '\n';
             return 1;
         }
     }

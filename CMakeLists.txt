@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
     PointCloudProcessingToolkit
-    VERSION 0.4.0
+    VERSION 0.5.0
     DESCRIPTION "A lightweight C++ point cloud processing toolkit"
     LANGUAGES CXX
 )
@@ -30,6 +30,8 @@ add_library(pct_core
     src/geometry/transform.cpp
     src/geometry/statistics.cpp
     src/filters/voxel_grid.cpp
+    src/filters/radius_outlier.cpp
+    src/search/brute_force.cpp
 )
 add_library(pct::core ALIAS pct_core)
 
@@ -143,4 +145,22 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_BINARY_DIR}/voxel_invalid.ply"
             --leaf-size 0)
     set_tests_properties(pct_cli_voxel_invalid_leaf PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME pct_cli_radius_filter COMMAND pointcloud_tool radius-filter
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/radius_filter_input_xyz_rgb.ply"
+            "${CMAKE_CURRENT_BINARY_DIR}/radius_filtered.ply"
+            --radius 1.5 --min-neighbors 2)
+    set_tests_properties(
+        pct_cli_radius_filter PROPERTIES
+        PASS_REGULAR_EXPRESSION "removed_points: 1"
+    )
+
+    add_test(NAME pct_cli_radius_filter_invalid_neighbors
+            COMMAND pointcloud_tool radius-filter
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/radius_filter_input_xyz_rgb.ply"
+            "${CMAKE_CURRENT_BINARY_DIR}/radius_invalid.ply"
+            --radius 1.5 --min-neighbors 0)
+    set_tests_properties(
+        pct_cli_radius_filter_invalid_neighbors PROPERTIES WILL_FAIL TRUE
+    )
 endif()
