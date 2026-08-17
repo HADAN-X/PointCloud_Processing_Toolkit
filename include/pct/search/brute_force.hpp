@@ -1,5 +1,5 @@
 #pragma once
-#include "pct/core/point_cloud.hpp"
+#include "pct/search/neighbor.hpp"
 
 #include <Eigen/Core>
 #include <cstddef>
@@ -8,11 +8,6 @@
 
 namespace pct::search
 {
-    struct Neighbor
-    {
-        PointCloud::size_type index{0};
-        double squared_distance{0.0};
-    };
 
     [[nodiscard]] std::vector<Neighbor>
     knnSearch(const PointCloud &cloud, const Eigen::Vector3f &query, std::size_t k,
