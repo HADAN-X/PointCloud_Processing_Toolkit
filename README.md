@@ -2,7 +2,7 @@
 
 A lightweight, testable C++ toolkit for point cloud I/O, filtering, spatial search, feature estimation, and rigid registration.
 
-> **Current status:** v0.5.0 neighborhood search and outlier removal. The toolkit now provides deterministic brute-force KNN and radius queries as a correctness baseline, plus radius-based removal of isolated points with explicit neighbor semantics and CLI metrics.
+> **Current status:** v0.6.0 three-dimensional KD-tree. The toolkit now provides a median-balanced spatial index with exact KNN and radius queries, deterministic results, explicit lifetime semantics, and reproducible comparison against its brute-force baseline.
 
 ## Why This Project
 
@@ -27,7 +27,7 @@ The goal is not to replace PCL or Open3D. The project deliberately keeps a narro
 | Point cloud statistics and rigid transformations         | Complete | v0.3.0           |
 | Voxel-grid downsampling                                  | Complete | v0.4.0           |
 | Brute-force KNN/radius search and radius outlier removal | Complete | v0.5.0           |
-| Three-dimensional KD-tree                                | Planned  | v0.6.0           |
+| Three-dimensional KD-tree                                | Complete | v0.6.0           |
 | PCA-based normal estimation                              | Planned  | v0.7.0           |
 | Point-to-point ICP registration                          | Planned  | v0.8.0           |
 | Unified command-line interface                           | Planned  | v0.9.0           |
@@ -65,13 +65,13 @@ ctest --preset windows-msvc-release --output-on-failure
 
 The first configure downloads pinned Eigen and GoogleTest sources into the ignored `build/` directory. Subsequent builds reuse the local dependency cache.
 
-The v0.5.0 milestone has been verified with:
+The v0.6.0 milestone has been verified with:
 
 - Visual Studio Community 2022;
 - MSVC 19.41.34120;
 - Windows SDK 10.0.22621.0;
 - CMake 4.3.2;
-- 84 passing tests in both Debug and Release configurations.
+- 94 passing tests in both Debug and Release configurations.
 
 ## Command-Line Usage
 
@@ -169,6 +169,30 @@ Run the benchmark with:
 & '.\build\windows-msvc-release\Release\pointcloud_voxel_benchmark.exe' 1000000 0.5
 ```
 
+## KD-Tree Neighbor Benchmark
+
+The neighbor benchmark compares exact KD-tree KNN and radius queries with the
+validated brute-force baseline on the same fixed synthetic clouds and query
+sequences. Each result is the median of five Release repetitions after warm-up
+and an exact correctness check.
+
+Environment: Intel Core i7-9750H, 15.9 GiB RAM, Windows 10.0.26200, MSVC
+19.41.34120, and CMake 4.3.2. Each scale uses 1,000 queries, `k=16`, and
+`radius=5.0`.
+
+| Points | Max depth | Build (ms) | Brute KNN (ms) | KD KNN (ms) | KNN speedup | Brute radius (ms) | KD radius (ms) | Radius speedup |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10,000 | 14 | 3.100 | 76.345 | 4.953 | 15.414× | 68.232 | 0.624 | 109.434× |
+| 100,000 | 17 | 41.086 | 1,108.530 | 5.915 | 187.397× | 1,064.478 | 2.505 | 424.924× |
+| 1,000,000 | 20 | 611.915 | 9,984.119 | 10.296 | 969.727× | 9,540.028 | 18.377 | 519.143× |
+
+The speedups describe the complete public APIs. Brute-force queries include
+per-query cloud validation and candidate allocation, whereas KD-tree cloud
+validation is paid once during construction. Construction time is reported
+separately and must be considered for workloads with few queries. Full
+methodology, commands, interpretation, and limitations are in
+[`docs/benchmark.md`](docs/benchmark.md).
+
 ## Current Structure
 
 ```text
@@ -176,9 +200,12 @@ PointCloud_Processing_Toolkit/
 ├── app/
 │   └── main.cpp
 ├── benchmarks/
+│   ├── benchmark_neighbor_search.cpp
 │   └── benchmark_voxel_grid.cpp
-├── docs/images/
-│   └── voxel_before_after.png
+├── docs/
+│   ├── benchmark.md
+│   └── images/
+│       └── voxel_before_after.png
 ├── include/pct/
 │   ├── core/
 │   │   ├── point.hpp
@@ -192,7 +219,9 @@ PointCloud_Processing_Toolkit/
 │   ├── io/
 │   │   └── ply_io.hpp
 │   └── search/
-│       └── brute_force.hpp
+│       ├── brute_force.hpp
+│       ├── kd_tree.hpp
+│       └── neighbor.hpp
 ├── src/
 │   ├── core/
 │   │   └── point_cloud.cpp
@@ -205,7 +234,8 @@ PointCloud_Processing_Toolkit/
 │   ├── io/
 │   │   └── ply_io.cpp
 │   └── search/
-│       └── brute_force.cpp
+│       ├── brute_force.cpp
+│       └── kd_tree.cpp
 ├── tests/
 │   ├── fixtures/
 │   │   ├── ascii_xyz.ply
@@ -221,14 +251,15 @@ PointCloud_Processing_Toolkit/
 │   │   ├── test_transform.cpp
 │   │   ├── test_voxel_grid.cpp
 │   │   ├── test_brute_force.cpp
-│   │   └── test_radius_outlier.cpp
+│   │   ├── test_radius_outlier.cpp
+│   │   └── test_kd_tree.cpp
 │   └── CMakeLists.txt
 ├── CMakeLists.txt
 ├── CMakePresets.json
 └── README.md
 ```
 
-Directories for filters, search, features, registration, benchmarks, and data will be introduced when their first real implementation is added. Empty architecture placeholders are intentionally not committed.
+Directories are introduced only when their first real implementation is added. Empty architecture placeholders are intentionally not committed.
 
 ## Core API
 
@@ -280,10 +311,15 @@ The `pct::search` API currently provides:
 - optional exclusion of one point index, without discarding other coincident points;
 - inclusive radius boundaries and deterministic ordering by distance and then index;
 - explicit rejection of non-finite queries, non-finite point positions, invalid radii, and out-of-range excluded indices.
+- a median-balanced three-dimensional `KdTree` with cyclic X/Y/Z splitting;
+- exact KNN and radius queries using recursive near/far traversal and plane-distance pruning;
+- the same squared-distance, index-exclusion, boundary, tie-breaking, and result-ordering semantics as brute force;
+- node-count, maximum-depth, and construction-time statistics;
+- a static non-owning index whose source cloud must outlive the tree and remain unchanged.
 
 ## Validation
 
-The v0.5.0 test suite covers:
+The v0.6.0 test suite covers:
 
 - CLI startup without arguments;
 - CLI help and version commands;
@@ -322,6 +358,13 @@ The v0.5.0 test suite covers:
 - radius outlier removal on a colored cluster with one isolated point;
 - invalid radius and neighbor-count paths, parameter sensitivity, and complete-removal cases;
 - the `radius-filter` CLI success and invalid-parameter paths.
+- KD-tree construction for empty, single-point, sorted, duplicate, collinear, and coplanar clouds;
+- 300 randomized KNN and radius query pairs compared item by item with brute force;
+- balanced node-count and maximum-depth statistics;
+- zero K, K above the available point count, inclusive radius boundaries, and excluded-index behavior;
+- a regression case in which an excluded node is visited before the candidate heap is populated;
+- rejection of non-finite construction data, non-finite queries, negative radii, and out-of-range indices;
+- Release neighbor-search benchmarks at 10,000, 100,000, and 1,000,000 points.
 
 Future algorithms will use four levels of validation:
 
@@ -366,6 +409,11 @@ Current limitations:
 - ordered KNN and radius results add sorting work after distance evaluation;
 - repeated brute-force radius queries make the current radius outlier filter unsuitable for large point clouds;
 - radius-filter parameters depend on coordinate scale and sampling density and can remove valid sparse structures when poorly chosen.
+- KD-tree queries can degrade to linear time when pruning is ineffective or result sets are large;
+- the KD-tree is static and non-owning, so the source cloud must outlive it and must not change point coordinates or ordering;
+- cyclic splitting is simple and deterministic but does not adapt the axis to local variance;
+- the published neighbor benchmark uses one synthetic uniform distribution and does not represent every real point-cloud geometry;
+- benchmark speedups compare the complete validated public APIs rather than validation-free search kernels.
 
 ## Design Principles
 

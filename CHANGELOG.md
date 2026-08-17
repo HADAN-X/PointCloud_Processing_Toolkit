@@ -8,6 +8,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 No changes yet.
 
+## [0.6.0] - 2026-08-17
+
+### Added
+
+- Median-balanced three-dimensional KD-tree with deterministic exact KNN and radius queries.
+- Cyclic X/Y/Z splitting, recursive near/far traversal, and plane-distance pruning.
+- Node-count, maximum-depth, and construction-time statistics.
+- Randomized and degenerate-input comparisons against the brute-force baseline.
+- Reproducible Release benchmark for construction, KNN, and radius performance at 10,000, 100,000, and 1,000,000 points.
+- Public benchmark methodology, reproduction commands, results, interpretation, and limitations.
+
+### Changed
+
+- Moved the shared neighbor result and ordering into a search-independent header used by both implementations.
+
+### Validation
+
+- MSVC Debug build and 94/94 tests.
+- MSVC Release build and 94/94 tests.
+- Three hundred randomized KNN/radius query pairs matched brute force item by item.
+- Empty, single-point, sorted, duplicate, collinear, coplanar, boundary, and excluded-index cases passed.
+- Five-run Release medians recorded with 1,000 KNN and radius queries per scale.
+
+### Performance
+
+- At 1,000,000 uniformly distributed points, median construction took 611.915 ms.
+- For 1,000 queries at that scale, KD-tree KNN took 10.296 ms versus 9,984.119 ms for brute force; radius search took 18.377 ms versus 9,540.028 ms.
+- Results describe the complete validated APIs and the documented synthetic workload, not universal speedup guarantees.
+
+### Limitations
+
+- The KD-tree is a static non-owning index; its source cloud must outlive it and remain unchanged.
+- Worst-case query time remains linear, and large K, large radii, or unfavorable distributions can weaken pruning.
+- Cyclic splitting does not adapt to local point variance.
+
 ## [0.5.0] - 2026-08-13
 
 ### Added
@@ -121,7 +156,8 @@ No changes yet.
 - Repository ignore rules and cross-platform line-ending policy.
 - MIT license.
 
-[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.5.0-neighborhood...HEAD
+[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.6.0-kdtree...HEAD
+[0.6.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.6.0-kdtree
 [0.5.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.5.0-neighborhood
 [0.4.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.4.0-voxel-grid
 [0.3.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.3.0-geometry
