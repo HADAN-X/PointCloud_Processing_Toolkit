@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
     PointCloudProcessingToolkit
-    VERSION 0.5.0
+    VERSION 0.6.0
     DESCRIPTION "A lightweight C++ point cloud processing toolkit"
     LANGUAGES CXX
 )
@@ -32,6 +32,7 @@ add_library(pct_core
     src/filters/voxel_grid.cpp
     src/filters/radius_outlier.cpp
     src/search/brute_force.cpp
+    src/search/kd_tree.cpp
 )
 add_library(pct::core ALIAS pct_core)
 
@@ -51,6 +52,7 @@ endif()
 
 option(PCT_BUILD_BENCHMARKS "Build reproducible benchmark executables" ON)
 if(PCT_BUILD_BENCHMARKS)
+    # Voxel-grid downsampling benchmark.
     add_executable(
         pointcloud_voxel_benchmark
         benchmarks/benchmark_voxel_grid.cpp
@@ -67,6 +69,22 @@ if(PCT_BUILD_BENCHMARKS)
     else()
         target_compile_options(
             pointcloud_voxel_benchmark PRIVATE -Wall -Wextra -Wpedantic
+        )
+    endif()
+    # KD-tree neighbor-search benchmark.
+    add_executable(
+        pointcloud_neighbor_benchmark
+        benchmarks/benchmark_neighbor_search.cpp
+    )
+    target_link_libraries(pointcloud_neighbor_benchmark PRIVATE pct::core)
+    target_compile_features(pointcloud_neighbor_benchmark PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(
+            pointcloud_neighbor_benchmark PRIVATE /W4 /permissive- /Zc:__cplusplus
+        )
+    else()
+        target_compile_options(
+            pointcloud_neighbor_benchmark PRIVATE -Wall -Wextra -Wpedantic
         )
     endif()
 endif()

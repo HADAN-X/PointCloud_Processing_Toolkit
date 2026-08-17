@@ -29,16 +29,6 @@ namespace pct::search
             }
         }
 
-        bool neighborLess(const Neighbor &lhs, const Neighbor &rhs) noexcept
-        {
-            if (lhs.squared_distance != rhs.squared_distance)
-            {
-                return lhs.squared_distance < rhs.squared_distance;
-            }
-            // Sort by index if the distances are the same
-            return lhs.index < rhs.index;
-        }
-
         std::vector<Neighbor>
 
         // Exclude only the explicitly requested point index.
