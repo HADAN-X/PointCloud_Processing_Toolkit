@@ -2,7 +2,7 @@
 
 A lightweight, testable C++ toolkit for point cloud I/O, filtering, spatial search, feature estimation, and rigid registration.
 
-> **Current status:** v0.6.0 three-dimensional KD-tree. The toolkit now provides a median-balanced spatial index with exact KNN and radius queries, deterministic results, explicit lifetime semantics, and reproducible comparison against its brute-force baseline.
+> **Current status:** v0.7.0 PCA-based normal estimation. The toolkit now derives local surface normals and curvature from KNN or radius neighborhoods, reports insufficient and degenerate neighborhoods explicitly, and supports deterministic or viewpoint-based orientation.
 
 ## Why This Project
 
@@ -28,7 +28,7 @@ The goal is not to replace PCL or Open3D. The project deliberately keeps a narro
 | Voxel-grid downsampling                                  | Complete | v0.4.0           |
 | Brute-force KNN/radius search and radius outlier removal | Complete | v0.5.0           |
 | Three-dimensional KD-tree                                | Complete | v0.6.0           |
-| PCA-based normal estimation                              | Planned  | v0.7.0           |
+| PCA-based normal estimation                              | Complete | v0.7.0           |
 | Point-to-point ICP registration                          | Planned  | v0.8.0           |
 | Unified command-line interface                           | Planned  | v0.9.0           |
 | Benchmarks, CI, and real-data validation                 | Planned  | v0.10.0          |
@@ -65,13 +65,13 @@ ctest --preset windows-msvc-release --output-on-failure
 
 The first configure downloads pinned Eigen and GoogleTest sources into the ignored `build/` directory. Subsequent builds reuse the local dependency cache.
 
-The v0.6.0 milestone has been verified with:
+The v0.7.0 milestone has been verified with:
 
 - Visual Studio Community 2022;
 - MSVC 19.41.34120;
 - Windows SDK 10.0.22621.0;
 - CMake 4.3.2;
-- 94 passing tests in both Debug and Release configurations.
+- 104 passing tests in both Debug and Release configurations.
 
 ## Command-Line Usage
 
@@ -193,6 +193,41 @@ separately and must be considered for workloads with few queries. Full
 methodology, commands, interpretation, and limitations are in
 [`docs/benchmark.md`](docs/benchmark.md).
 
+## PCA Normal-Estimation Experiment
+
+The normal estimator builds one KD-tree per public estimation call, includes
+the query point in its neighborhood, accumulates centroids and covariance
+matrices in double precision, and uses Eigen's self-adjoint eigensolver. The
+smallest-eigenvalue eigenvector is the normal, while
+`lambda0 / (lambda0 + lambda1 + lambda2)` is reported as a local surface
+variation measure.
+
+The fixed-seed experiment uses a `100 x 100` regular XY grid in `[-1, 1]^2`,
+adds Gaussian noise only along Z, and estimates every normal with `k=20`.
+Angular error is sign-invariant relative to the ideal positive-Z normal. Each
+time is the median of five Release repetitions after warm-up and includes
+KD-tree construction plus the complete estimation pass.
+
+Environment: Intel Core i7-9750H, 15.9 GiB RAM, Windows 10.0.26200, MSVC
+19.41.34120, and CMake 4.3.2.
+
+| Z-noise sigma | Total median (ms) | Valid normals | Mean error (deg) | Median error (deg) | P95 error (deg) | Mean curvature |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.000 | 94.9764 | 10,000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| 0.001 | 88.4596 | 10,000 | 0.576767 | 0.539230 | 1.141582 | 0.000608 |
+| 0.005 | 81.8396 | 10,000 | 3.017098 | 2.814595 | 5.948408 | 0.014920 |
+| 0.010 | 87.3256 | 10,000 | 6.346142 | 5.950517 | 12.360669 | 0.052496 |
+
+All 10,000 neighborhoods remained valid. Angular error and curvature rose with
+noise, while runtime differences were treated as normal measurement variation
+rather than a noise-dependent performance trend.
+
+Run the experiment with:
+
+```powershell
+& '.\build\windows-msvc-release\Release\pointcloud_normal_benchmark.exe' 100 20 5
+```
+
 ## Current Structure
 
 ```text
@@ -201,6 +236,7 @@ PointCloud_Processing_Toolkit/
 │   └── main.cpp
 ├── benchmarks/
 │   ├── benchmark_neighbor_search.cpp
+│   ├── benchmark_normal_estimation.cpp
 │   └── benchmark_voxel_grid.cpp
 ├── docs/
 │   ├── benchmark.md
@@ -210,6 +246,8 @@ PointCloud_Processing_Toolkit/
 │   ├── core/
 │   │   ├── point.hpp
 │   │   └── point_cloud.hpp
+│   ├── features/
+│   │   └── normal_estimation.hpp
 │   ├── filters/
 │   │   ├── radius_outlier.hpp
 │   │   └── voxel_grid.hpp
@@ -225,6 +263,8 @@ PointCloud_Processing_Toolkit/
 ├── src/
 │   ├── core/
 │   │   └── point_cloud.cpp
+│   ├── features/
+│   │   └── normal_estimation.cpp
 │   ├── filters/
 │   │   ├── radius_outlier.cpp
 │   │   └── voxel_grid.cpp
@@ -252,7 +292,8 @@ PointCloud_Processing_Toolkit/
 │   │   ├── test_voxel_grid.cpp
 │   │   ├── test_brute_force.cpp
 │   │   ├── test_radius_outlier.cpp
-│   │   └── test_kd_tree.cpp
+│   │   ├── test_kd_tree.cpp
+│   │   └── test_normal_estimation.cpp
 │   └── CMakeLists.txt
 ├── CMakeLists.txt
 ├── CMakePresets.json
@@ -317,9 +358,20 @@ The `pct::search` API currently provides:
 - node-count, maximum-depth, and construction-time statistics;
 - a static non-owning index whose source cloud must outlive the tree and remain unchanged.
 
+The `pct::features` API currently provides:
+
+- KNN- and radius-based PCA normal estimation backed by one KD-tree per call;
+- double-precision centroid, covariance, eigendecomposition, and curvature calculations;
+- normals from the smallest-eigenvalue eigenvector and curvature from the normalized smallest eigenvalue;
+- an actual neighbor count and explicit `Valid`, `InsufficientNeighbors`, or `DegenerateNeighborhood` status for every input point;
+- rank-aware rejection of collinear and coincident neighborhoods without NaN output;
+- deterministic dominant-component orientation when no viewpoint is supplied;
+- optional orientation toward a finite viewpoint;
+- inclusion of the query point itself in both KNN and radius neighborhoods.
+
 ## Validation
 
-The v0.6.0 test suite covers:
+The v0.7.0 test suite covers:
 
 - CLI startup without arguments;
 - CLI help and version commands;
@@ -365,6 +417,13 @@ The v0.6.0 test suite covers:
 - a regression case in which an excluded node is visited before the candidate heap is populated;
 - rejection of non-finite construction data, non-finite queries, negative radii, and out-of-range indices;
 - Release neighbor-search benchmarks at 10,000, 100,000, and 1,000,000 points.
+- exact planar normals and near-zero planar curvature with KNN and radius neighborhoods;
+- viewpoint-controlled normal orientation above and below a plane;
+- explicit finite results for insufficient, collinear, and coincident neighborhoods;
+- sign-invariant radial normal checks on a synthetic sphere;
+- finite unit normals and bounded mean angular error on a fixed noisy plane;
+- invalid K, radius, minimum-neighbor, viewpoint, and point-position inputs;
+- a fixed-seed 10,000-point Release experiment reporting mean, median, and P95 angular errors, validity, curvature, and total runtime across four noise levels.
 
 Future algorithms will use four levels of validation:
 
@@ -414,6 +473,12 @@ Current limitations:
 - cyclic splitting is simple and deterministic but does not adapt the axis to local variance;
 - the published neighbor benchmark uses one synthetic uniform distribution and does not represent every real point-cloud geometry;
 - benchmark speedups compare the complete validated public APIs rather than validation-free search kernels.
+- normal estimates depend on neighborhood size, point density, noise, boundaries, and whether a neighborhood crosses multiple surfaces;
+- local PCA determines a normal axis but not a globally consistent surface orientation;
+- one optional viewpoint can orient normals toward that viewpoint, but no graph-based orientation propagation is implemented;
+- rank thresholds reject line-like and coincident neighborhoods, while nearly degenerate real data may remain threshold-sensitive;
+- each public normal-estimation call constructs a new KD-tree and currently runs in memory on one CPU thread;
+- normal and curvature values are returned separately and are not yet written as PLY vertex properties.
 
 ## Design Principles
 

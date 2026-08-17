@@ -7,6 +7,7 @@ add_executable(pct_core_tests
     unit/test_brute_force.cpp
     unit/test_radius_outlier.cpp
     unit/test_kd_tree.cpp
+    unit/test_normal_estimation.cpp
 )
 
 target_link_libraries(pct_core_tests
