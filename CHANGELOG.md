@@ -8,6 +8,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 No changes yet.
 
+## [0.7.0] - 2026-08-17
+
+### Added
+
+- KNN- and radius-based PCA normal-estimation APIs backed by the three-dimensional KD-tree.
+- Per-point unit normal, curvature, actual neighbor count, and explicit valid, insufficient-neighbor, or degenerate-neighborhood status.
+- Double-precision local centroid and covariance accumulation with Eigen self-adjoint eigendecomposition.
+- Rank-aware rejection of collinear and coincident neighborhoods without non-finite output.
+- Deterministic dominant-component normal orientation and optional orientation toward a finite viewpoint.
+- Ten analytical, degenerate, spherical, noisy, and invalid-input tests.
+- Fixed-seed Release experiment for normal accuracy, validity, curvature, and complete-pass runtime across four noise levels.
+
+### Validation
+
+- MSVC Debug build and 104/104 tests.
+- MSVC Release build and 104/104 tests.
+- Exact planar normals and near-zero curvature passed for KNN and radius neighborhoods, including boundary points.
+- Synthetic sphere normals achieved an absolute radial dot product above 0.97.
+- Insufficient, collinear, and coincident neighborhoods returned explicit finite invalid results.
+- All 10,000 points remained valid at every recorded noise level.
+
+### Experiment
+
+- The fixed `100 x 100` plane used `k=20`, seed `20260817`, one warm-up, and five Release repetitions per noise level.
+- Mean angular error increased from 0 degrees without noise to 0.576767, 3.017098, and 6.346142 degrees at Z-noise sigmas 0.001, 0.005, and 0.010.
+- P95 angular error reached 12.360669 degrees and mean curvature reached 0.052496 at sigma 0.010.
+- Reported total medians include KD-tree construction and all 10,000 normal estimates; timing variation is not interpreted as a noise-dependent speed trend.
+
+### Limitations
+
+- Normal quality depends on neighborhood scale, sampling density, noise, boundaries, and mixed-surface neighborhoods.
+- PCA determines a local normal axis but does not provide global orientation propagation.
+- Each public estimation call rebuilds the KD-tree and executes on one CPU thread.
+- Normal and curvature results are not yet serialized as PLY vertex properties.
+
 ## [0.6.0] - 2026-08-17
 
 ### Added
@@ -156,7 +191,8 @@ No changes yet.
 - Repository ignore rules and cross-platform line-ending policy.
 - MIT license.
 
-[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.6.0-kdtree...HEAD
+[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.7.0-normals...HEAD
+[0.7.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.7.0-normals
 [0.6.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.6.0-kdtree
 [0.5.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.5.0-neighborhood
 [0.4.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.4.0-voxel-grid
