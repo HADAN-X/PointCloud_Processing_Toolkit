@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
     PointCloudProcessingToolkit
-    VERSION 0.7.0
+    VERSION 0.8.0
     DESCRIPTION "A lightweight C++ point cloud processing toolkit"
     LANGUAGES CXX
 )
@@ -34,6 +34,7 @@ add_library(pct_core
     src/search/brute_force.cpp
     src/search/kd_tree.cpp
     src/features/normal_estimation.cpp
+    src/registration/icp.cpp
 )
 add_library(pct::core ALIAS pct_core)
 
@@ -102,6 +103,22 @@ if(PCT_BUILD_BENCHMARKS)
     else()
         target_compile_options(
             pointcloud_normal_benchmark PRIVATE -Wall -Wextra -Wpedantic
+        )
+    endif()
+    # Point-to-point ICP accuracy, robustness, and runtime experiment.
+    add_executable(
+        pointcloud_icp_benchmark
+        benchmarks/benchmark_icp.cpp
+    )
+    target_link_libraries(pointcloud_icp_benchmark PRIVATE pct::core)
+    target_compile_features(pointcloud_icp_benchmark PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(
+            pointcloud_icp_benchmark PRIVATE /W4 /permissive- /Zc:__cplusplus
+        )
+    else()
+        target_compile_options(
+            pointcloud_icp_benchmark PRIVATE -Wall -Wextra -Wpedantic
         )
     endif()
 endif()

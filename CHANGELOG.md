@@ -8,6 +8,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 No changes yet.
 
+## [0.8.0] - 2026-08-18
+
+### Added
+
+- Point-to-point ICP registration with a source-to-target initial transform and target-side KD-tree correspondences.
+- Double-precision centroid, cross-covariance, SVD rigid-update, and cumulative-transform calculations.
+- Reflection correction that keeps incremental rotations at positive determinant.
+- Maximum correspondence distance, minimum correspondence count, maximum iteration count, pose-delta thresholds, and RMSE-change threshold.
+- Per-iteration correspondence count, RMSE, RMSE change, translation and rotation deltas, and incremental transform history.
+- Explicit transform-converged, RMSE-converged, iteration-limit, insufficient-correspondence, degenerate-geometry, and numerical-failure states.
+- Ten tests covering known translations, rotations, mixed transforms, initial-pose behavior, iteration history, invalid inputs, and failure states.
+- Fixed-seed Release experiment across target noise, distant source outliers, partial overlap, and different initial-pose errors.
+- Public ICP experiment methodology, complete results, interpretation, reproduction commands, and limitations.
+
+### Validation
+
+- MSVC Debug build and 114/114 tests.
+- MSVC Release build and 114/114 tests.
+- Exact full-overlap translation, rotation, and mixed-transform cases recovered the known transform within test tolerances.
+- Initial-pose testing verified the source-to-target direction beyond the correspondence-distance gate.
+- Collinear geometry, insufficient correspondences, iteration limits, invalid options, and non-finite source coordinates produced the expected states or exceptions.
+- Every fixed-seed Release scenario converged in 5/5 runs.
+
+### Experiment
+
+- The recorded workload used 2,000 source inliers, five Release repetitions, a maximum correspondence distance of 0.35, and deterministic seeds derived from `20260817`.
+- Gaussian target noise sigma 0.002 produced a mean final RMSE of 0.003475 and mean translation error of 0.000072.
+- A 20% set of distant source outliers was excluded from the final correspondence set, while the added queries increased mean runtime from 5.000860 ms to 38.489780 ms.
+- Reducing target overlap to 70% increased mean final RMSE to 0.113836, mean rotation error to 0.163280 degrees, and mean translation error to 0.003259 despite numerical convergence in every run.
+- Increasing initial rotation error from 5 to 15 degrees increased mean iteration count from 4 to 15.
+
+### Limitations
+
+- Point-to-point ICP is locally convergent and depends on an adequate initial pose and correspondence-distance threshold.
+- Correspondences are one-way, non-unique nearest neighbors without reciprocal filtering or a robust loss.
+- Numerical convergence does not guarantee the globally correct pose, especially under partial overlap or repeated geometry.
+- The current implementation is single-threaded, in memory, and rebuilds the target KD-tree for every registration call.
+- Published results use fixed synthetic random clouds rather than real sensor sequences.
+
 ## [0.7.0] - 2026-08-17
 
 ### Added
@@ -191,7 +230,8 @@ No changes yet.
 - Repository ignore rules and cross-platform line-ending policy.
 - MIT license.
 
-[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.7.0-normals...HEAD
+[Unreleased]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/compare/v0.8.0-icp...HEAD
+[0.8.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.8.0-icp
 [0.7.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.7.0-normals
 [0.6.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.6.0-kdtree
 [0.5.0]: https://github.com/HADAN-X/PointCloud_Processing_Toolkit/releases/tag/v0.5.0-neighborhood
