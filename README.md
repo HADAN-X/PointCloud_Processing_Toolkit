@@ -2,7 +2,7 @@
 
 A lightweight, testable C++ toolkit for point cloud I/O, filtering, spatial search, feature estimation, and rigid registration.
 
-> **Current status:** v0.7.0 PCA-based normal estimation. The toolkit now derives local surface normals and curvature from KNN or radius neighborhoods, reports insufficient and degenerate neighborhoods explicitly, and supports deterministic or viewpoint-based orientation.
+> **Current status:** v0.8.0 point-to-point ICP registration. The toolkit now aligns a source cloud to a target cloud with KD-tree correspondences and SVD rigid-transform updates, accepts an initial pose, records per-iteration diagnostics, and reports explicit convergence and failure states.
 
 ## Why This Project
 
@@ -29,7 +29,7 @@ The goal is not to replace PCL or Open3D. The project deliberately keeps a narro
 | Brute-force KNN/radius search and radius outlier removal | Complete | v0.5.0           |
 | Three-dimensional KD-tree                                | Complete | v0.6.0           |
 | PCA-based normal estimation                              | Complete | v0.7.0           |
-| Point-to-point ICP registration                          | Planned  | v0.8.0           |
+| Point-to-point ICP registration                          | Complete | v0.8.0           |
 | Unified command-line interface                           | Planned  | v0.9.0           |
 | Benchmarks, CI, and real-data validation                 | Planned  | v0.10.0          |
 | Documented and reproducible release                      | Planned  | v1.0.0           |
@@ -65,13 +65,13 @@ ctest --preset windows-msvc-release --output-on-failure
 
 The first configure downloads pinned Eigen and GoogleTest sources into the ignored `build/` directory. Subsequent builds reuse the local dependency cache.
 
-The v0.7.0 milestone has been verified with:
+The v0.8.0 milestone has been verified with:
 
 - Visual Studio Community 2022;
 - MSVC 19.41.34120;
 - Windows SDK 10.0.22621.0;
 - CMake 4.3.2;
-- 104 passing tests in both Debug and Release configurations.
+- 114 passing tests in both Debug and Release configurations.
 
 ## Command-Line Usage
 
@@ -228,6 +228,46 @@ Run the experiment with:
 & '.\build\windows-msvc-release\Release\pointcloud_normal_benchmark.exe' 100 20 5
 ```
 
+## Point-to-Point ICP Experiment
+
+The registration API applies an initial source-to-target transform, builds one
+KD-tree over the target cloud, and alternates nearest-neighbor correspondence
+with double-precision SVD rigid updates. A maximum correspondence distance
+filters unmatched points, and reflection correction keeps every incremental
+rotation in `SO(3)`. The result includes the cumulative transform, final RMSE,
+per-iteration correspondence and update diagnostics, and an explicit stop
+reason.
+
+The fixed-seed synthetic experiment uses 2,000 source inliers and five Release
+repetitions per scenario. It varies Gaussian target noise, distant source
+outliers, overlap, and initial-pose error. Times are means of complete
+registration calls; accuracy is measured against the known transform.
+
+Environment: Intel Core i7-9750H, 15.9 GiB RAM, Windows 10.0.26200, MSVC
+19.41.34120, and CMake 4.3.2.
+
+| Scenario | Converged | Mean time (ms) | Mean iterations | Final correspondences | Final RMSE | Rotation error (deg) | Translation error |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Identity-like initial pose | 5/5 | 5.000860 | 5.0 | 2,000.0 | 0.000000 | 0.000000 | 0.000000 |
+| Target noise sigma 0.002 | 5/5 | 4.683300 | 4.6 | 2,000.0 | 0.003475 | 0.000000 | 0.000072 |
+| 20% distant source outliers | 5/5 | 38.489780 | 4.6 | 2,000.0 | 0.000000 | 0.000000 | 0.000000 |
+| 70% target overlap | 5/5 | 8.338740 | 8.6 | 1,980.6 | 0.113836 | 0.163280 | 0.003259 |
+| 15-degree initial rotation error | 5/5 | 19.694440 | 15.0 | 2,000.0 | 0.000000 | 0.000000 | 0.000000 |
+
+The distance gate rejects the distant outliers, but they still add query work.
+Partial overlap increases both residual and pose error even though every run
+meets a numerical convergence condition. This distinction is important:
+convergence means the iteration stopped changing, not that ICP found the
+global alignment. Full methodology, all seven scenarios, reproduction
+commands, interpretation, and limitations are in
+[`docs/experiments.md`](docs/experiments.md).
+
+Run the experiment with:
+
+```powershell
+& '.\build\windows-msvc-release\Release\pointcloud_icp_benchmark.exe' 2000 5
+```
+
 ## Current Structure
 
 ```text
@@ -237,9 +277,11 @@ PointCloud_Processing_Toolkit/
 ├── benchmarks/
 │   ├── benchmark_neighbor_search.cpp
 │   ├── benchmark_normal_estimation.cpp
-│   └── benchmark_voxel_grid.cpp
+│   ├── benchmark_voxel_grid.cpp
+│   └── benchmark_icp.cpp
 ├── docs/
 │   ├── benchmark.md
+│   ├── experiments.md
 │   └── images/
 │       └── voxel_before_after.png
 ├── include/pct/
@@ -256,6 +298,8 @@ PointCloud_Processing_Toolkit/
 │   │   └── transform.hpp
 │   ├── io/
 │   │   └── ply_io.hpp
+│   ├── registration/
+│   │   └── icp.hpp
 │   └── search/
 │       ├── brute_force.hpp
 │       ├── kd_tree.hpp
@@ -273,6 +317,8 @@ PointCloud_Processing_Toolkit/
 │   │   └── transform.cpp
 │   ├── io/
 │   │   └── ply_io.cpp
+│   ├── registration/
+│   │   └── icp.cpp
 │   └── search/
 │       ├── brute_force.cpp
 │       └── kd_tree.cpp
@@ -293,7 +339,8 @@ PointCloud_Processing_Toolkit/
 │   │   ├── test_brute_force.cpp
 │   │   ├── test_radius_outlier.cpp
 │   │   ├── test_kd_tree.cpp
-│   │   └── test_normal_estimation.cpp
+│   │   ├── test_normal_estimation.cpp
+│   │   └── test_icp.cpp
 │   └── CMakeLists.txt
 ├── CMakeLists.txt
 ├── CMakePresets.json
@@ -369,9 +416,20 @@ The `pct::features` API currently provides:
 - optional orientation toward a finite viewpoint;
 - inclusion of the query point itself in both KNN and radius neighborhoods.
 
+The `pct::registration` API currently provides:
+
+- point-to-point ICP with a source-to-target initial transform;
+- one reusable target-side KD-tree and one-way nearest-neighbor correspondences;
+- a finite maximum-correspondence-distance gate and configurable minimum correspondence count;
+- double-precision centroids, cross-covariance, SVD updates, and transform accumulation;
+- reflection correction that keeps incremental rotations at positive determinant;
+- translation-, rotation-, RMSE-, and iteration-based stopping controls;
+- per-iteration correspondence count, RMSE, RMSE change, pose deltas, and incremental transform;
+- explicit converged, iteration-limit, insufficient-correspondence, degenerate-geometry, and numerical-failure states.
+
 ## Validation
 
-The v0.7.0 test suite covers:
+The v0.8.0 test suite covers:
 
 - CLI startup without arguments;
 - CLI help and version commands;
@@ -424,6 +482,12 @@ The v0.7.0 test suite covers:
 - finite unit normals and bounded mean angular error on a fixed noisy plane;
 - invalid K, radius, minimum-neighbor, viewpoint, and point-position inputs;
 - a fixed-seed 10,000-point Release experiment reporting mean, median, and P95 angular errors, validity, curvature, and total runtime across four noise levels.
+- exact recovery of known pure translations, pure rotations, and mixed rigid transforms with point-to-point ICP;
+- source-to-target initial-pose behavior beyond the correspondence-distance gate;
+- positive-determinant rigid output, convergence history, and maximum-iteration termination;
+- explicit insufficient-correspondence and collinear-geometry failure states;
+- rejection of invalid ICP options and non-finite source positions;
+- a fixed-seed Release experiment across target noise, distant source outliers, 70% overlap, and different initial-pose errors.
 
 Future algorithms will use four levels of validation:
 
@@ -479,6 +543,12 @@ Current limitations:
 - rank thresholds reject line-like and coincident neighborhoods, while nearly degenerate real data may remain threshold-sensitive;
 - each public normal-estimation call constructs a new KD-tree and currently runs in memory on one CPU thread;
 - normal and curvature values are returned separately and are not yet written as PLY vertex properties.
+- point-to-point ICP is locally convergent and depends on an adequate source-to-target initial pose;
+- correspondences are one-way nearest neighbors, are not unique or reciprocal, and do not use a robust loss;
+- the maximum correspondence distance depends on coordinate scale, noise, overlap, and initial-pose quality;
+- numerical convergence does not guarantee recovery of the globally correct transform, especially for partial overlap or repeated geometry;
+- the ICP implementation is single-threaded, in memory, and rebuilds the target KD-tree for each registration call;
+- the published ICP results use fixed synthetic random clouds rather than real sensor sequences.
 
 ## Design Principles
 
